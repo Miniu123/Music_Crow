@@ -1,10 +1,10 @@
 # Music Crow
 
-Desktopowy odtwarzacz muzyki w Pythonie i PyQt6. Wyszukuje utwory w YouTube Music i SoundCloud, przechowuje playlisty lokalnie i obsługuje kolejkę, equalizer oraz płynne przejścia między utworami.
+A desktop music player built with Python and PyQt6. Search for tracks on YouTube Music and SoundCloud, store playlists locally, and use playback queues, an equalizer, and crossfade transitions.
 
-## Uruchomienie
+## Getting started
 
-Wymagany Python 3.10 lub nowszy oraz systemowa biblioteka **libmpv** (pakiet mpv/libmpv zależnie od dystrybucji).
+Requires Python 3.10 or later and the system **libmpv** library (the mpv/libmpv package, depending on your distribution).
 
 ```bash
 python3 -m venv .venv
@@ -12,79 +12,82 @@ python3 -m venv .venv
 bash start.sh
 ```
 
-Skrypt korzysta kolejno z dostępnego interpretera `.venv`, `venv` lub systemowego `python3`. Wyszukiwanie uruchamia yt-dlp przez interpreter aplikacji. Połączenie internetowe jest wymagane do wyszukiwania i odtwarzania źródeł online. Dostępność utworów zależy od usług źródłowych.
+The startup script uses the first available interpreter in this order: `.venv`, `venv`, then the system `python3`. Searches run yt-dlp through the application's Python interpreter. An internet connection is required to search and play online sources. Track availability depends on the source services.
 
-Playlisty, okładki i ustawienia są zapisywane w `~/.config/music-crow/`. Integracja z klawiszami multimedialnymi przez MPRIS jest opcjonalna i wymaga `dbus-python`, PyGObject oraz sesji D-Bus. Kopie na Dysku Google można włączyć w ustawieniach po skonfigurowaniu logowania Google (instrukcja poniżej).
+The startup screen uses a soft logo reveal, animated sound bars, and your selected accent color. It transitions to the main window once initialization completes; clicking skips the animation's minimum display time without interrupting loading.
 
-## Weryfikacja
+Playlists, covers, and settings are stored in `~/.config/music-crow/`. Media key integration through MPRIS is optional and requires `dbus-python`, PyGObject, and a D-Bus session. Google Drive backups can be enabled in settings after configuring Google sign-in (see below).
+
+## Verification
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m compileall -q core ui main.py
 ```
 
-Testy sprawdzają zapis playlist (w tym przerwany zapis), kolejkę odtwarzania, zatrzymywanie obu instancji mpv, limit czasu procesu wyszukiwania oraz wyświetlanie miniatur. Nie wymagają dostępu do sieci.
+Tests cover playlist persistence (including interrupted writes), playback queues, stopping both mpv instances, search process timeouts, and thumbnail rendering. They do not require network access.
 
-## Rekomendacje na stronie głównej
+## Home page recommendations
 
-Sekcja „Proponowane dla Ciebie” łączy utwory z playlist i historii z nowymi wynikami wyszukiwania ulubionych wykonawców. Kliknięcie propozycji odtwarza listę, a przycisk `+` pozwala dodać utwór do kolejki lub playlisty.
+The “Recommended for you” section combines tracks from your playlists and listening history with new search results for your favourite artists. Clicking a recommendation plays the list, while the `+` button lets you add a track to a queue or playlist.
 
-Historia nalicza jedno odsłuchanie na sesję po 30 sekundach rzeczywistego odtwarzania albo po połowie krótszego utworu (minimum 5 sekund). Pauza, ładowanie i przewijanie nie zwiększają licznika. Historia jest zapisywana lokalnie w `~/.config/music-crow/listening_history.json` i obejmuje maksymalnie 500 utworów. Nie obejmuje odsłuchań sprzed wprowadzenia tej funkcji.
+Listening history records one play per session after 30 seconds of actual playback, or halfway through a shorter track (with a minimum of 5 seconds). Pausing, loading, and seeking do not increase the counter. History is stored locally in `~/.config/music-crow/listening_history.json` and includes up to 500 tracks. It does not include plays from before this feature was introduced.
 
-Algorytm przyznaje 2 punkty za obecność na playliście, dodaje wagę zależną od liczby odsłuchań i zmniejsza wagę historii o połowę co 30 dni. Rekomendacje ograniczają liczbę utworów jednego wykonawcy do dwóch i pomijają aktualnie odtwarzany utwór. Odkrywanie nowości obejmuje najwyżej trzech wykonawców i korzysta z YouTube Music lub SoundCloud. Do usług trafiają zapytania z nazwą wykonawcy; historia pozostaje lokalna, chyba że włączysz jej uwzględnianie w kopii na własnym Dysku Google. Brak sieci nie blokuje propozycji z własnej biblioteki. Wyniki odkrywania są buforowane w pamięci przez 30 minut; przycisk „Odśwież” pozwala pobrać je ponownie.
+The algorithm assigns 2 points for playlist membership, adds a weight based on play count, and halves the history weight every 30 days. Recommendations are limited to two tracks per artist and exclude the currently playing track. Discovery uses up to three artists and searches YouTube Music or SoundCloud. Only queries containing the artist's name are sent to these services; history remains local unless you enable its inclusion in backups to your own Google Drive. Recommendations from your library remain available offline. Discovery results are cached in memory for 30 minutes; the “Refresh” button fetches them again.
 
-### Dwie kolejki odtwarzania
+### Two playback queues
 
-Widok kolejki ma dwa panele z osobnym przewijaniem: „Z playlisty” i „Proponowane”. Lewy panel pokazuje utwory dodane do odtworzenia jako następne, a za nimi pozostałe utwory wybranej playlisty. Prawy zawiera dopasowaną kontynuację, która odtwarza się automatycznie po końcu lewej kolejki. Jeśli propozycje dotrą dopiero po końcu playlisty, odtwarzanie również ruszy automatycznie. Ręczne zatrzymanie blokuje takie wznowienie. Przy włączonym powtarzaniu playlisty propozycje czekają na wyłączenie powtarzania.
+The queue view has two independently scrollable panels: “From playlist” and “Recommended”. The left panel shows tracks added to play next, followed by the remaining tracks in the selected playlist. The right panel contains matching recommendations that play automatically after the left queue finishes. Playback also starts automatically if recommendations arrive after the playlist has ended. Manually stopping playback prevents this automatic restart. When playlist repeat is enabled, recommendations wait until repeat is turned off.
 
-Przycisk „Następny →” przy propozycji przenosi utwór na początek lewej kolejki bez przerywania obecnego utworu. Można też przeciągnąć go na początek albo w wybrane miejsce pozostałej playlisty. Zmiana dotyczy bieżącej sesji i nie modyfikuje zapisanej playlisty. Kliknięcie karty odtwarza utwór od razu, a przycisk `✕` usuwa go z kolejki. Zmiana wybranej playlisty czyści poprzednią proponowaną kontynuację. Na stronie głównej propozycje znajdują się pod playlistami.
+The “Next →” button on a recommendation moves the track to the front of the left queue without interrupting the current track. You can also drag it to the beginning or a specific position among the remaining playlist tracks. This changes the current session without modifying the saved playlist. Clicking a card plays the track immediately, and the `✕` button removes it from the queue. Selecting a different playlist clears the previous recommendations for continued playback. On the home page, recommendations appear below your playlists.
 
-## Przygotowanie następnego utworu
+While dragging, a bright insertion line marks exactly where the track will be placed. Hold the dragged track near the top or bottom edge to scroll continuously, even without moving the mouse. The scroll direction follows the top or bottom edge of the visible list, using drag-event coordinates so it does not depend on global cursor tracking. Scrolling gets faster closer to the edge and stops when the drag ends. Tracks can move between the play-next section and the remaining playlist, and list refreshes preserve your scroll position. If playback or another action changes the main queue during a drag, the outdated drop is cancelled to avoid moving the wrong entry. The view includes all remaining playlist tracks.
 
-Domyślnie aplikacja pobiera w tle audio **jednego następnego utworu** z faktycznej kolejki: uwzględnia „Następny”, zmianę kolejności, losowanie, powtarzanie i proponowaną kontynuację. Zmiana następnego utworu anuluje niepotrzebne pobieranie. Zwykłe odtwarzanie i płynne przejścia korzystają z gotowego pliku; w razie braku pliku odtwarzacz używa pierwotnego źródła online. Pierwszy utwór nadal może wymagać chwili na załadowanie, a wolne połączenie może nie pozwolić na przygotowanie kolejnego przed końcem bieżącego.
+## Preparing the next track
 
-Stan przygotowania jest widoczny pod suwakiem odtwarzania. Funkcję można wyłączyć w **Ustawienia → Odtwarzanie i brzmienie → Przygotuj następny utwór**. Pliki trafiają do `~/.cache/music-crow/audio/`. Pamięć podręczna jest automatycznie przycinana do trzech ostatnich plików i około 200 MB, z ochroną aktualnie używanego i następnego pliku. Jeden plik ma limit 80 MB. Pobieranie wyprzedzające pomija transmisje na żywo i nagrania dłuższe niż 20 minut. Nie zapisuje utworów w playlistach ani w katalogu pobrań użytkownika.
+By default, the application downloads audio for **one upcoming track** in the background, following the actual playback queue. This accounts for “Play next”, reordering, shuffle, repeat, and recommendations. Changing the next track cancels any download that is no longer needed. Both normal playback and crossfade use the prepared file; if it is unavailable, the player uses the original online source. The first track may still take a moment to load, and a slow connection may prevent the next track from being ready before the current one ends.
 
-## Język interfejsu i zapis propozycji
+Preparation status appears below the playback slider. You can disable this feature in **Settings → Playback & sound → Prepare the next track**. Files are stored in `~/.cache/music-crow/audio/`. The cache is automatically trimmed to the three most recent files and approximately 200 MB, while protecting the current and upcoming files. Each file is limited to 80 MB. Prefetching skips live streams and recordings longer than 20 minutes. It does not save tracks to playlists or your downloads folder.
 
-W **Ustawienia → Język → Język aplikacji** wybierz **Polski** lub **English**. Interfejs przełącza się od razu, bez restartu i przerywania odtwarzania. Wybór zapisuje się w `theme.json`; zmiana motywu go nie resetuje. Nazwy playlist, tytuły i wykonawcy pozostają w oryginalnej postaci.
+## Interface language and saving recommendations
 
-W prawej kolejce „Proponowane” obok przycisku „Następny” znajduje się ikona **Dodaj do playlisty**. Wybierz istniejącą playlistę lub opcję **Utwórz nową playlistę…**. Zapisanie nie przerywa odtwarzania ani nie przenosi utworu z kolejki. Utwory już zapisane są oznaczone w menu i nie są dodawane ponownie. Ten sam wybór playlist jest dostępny przy propozycjach na stronie głównej oraz w wynikach wyszukiwania.
+In **Settings → Language → Application language**, choose **Polski** or **English**. The interface switches immediately, without restarting the application or interrupting playback. Your choice is saved in `theme.json`; changing the theme does not reset it. Playlist names, track titles, and artist names remain in their original form.
 
-## Przeglądanie artysty / kanału
+In the right-hand “Recommended” queue, the **Add to playlist** icon appears beside the “Next” button. Select an existing playlist or choose **Create a new playlist…**. Saving does not interrupt playback or move the track out of the queue. Tracks already saved are marked in the menu and are not added again. The same playlist picker is available for home page recommendations and search results.
 
-Kliknij nazwę wykonawcy pod utworem w wynikach, playliście, propozycjach lub dolnym pasku odtwarzania, aby otworzyć jego kanał w aplikacji. Widok pokazuje utwory z kanału YouTube lub profilu SoundCloud, po 30 pozycji; **Pokaż więcej** wczytuje kolejną partię. Można odtworzyć całą wczytaną listę, rozpocząć od wybranego utworu albo przez `+` dodać go do kolejki lub playlisty. **Wróć** przenosi na poprzedni ekran. Samo przeglądanie nie przerywa muzyki ani nie zmienia kolejki.
+## Browsing an artist or channel
 
-Nowe wyniki i importy zachowują adres kanału. Dla starszych zapisów aplikacja próbuje odczytać go z linku do utworu. Jeśli nie uda się ustalić kanału, pokazuje wyraźnie oznaczone wyniki wyszukiwania nazwy wykonawcy na tej samej platformie; mogą one obejmować nagrania z innych kanałów. Zawartość zależy od publicznej dostępności źródła, a kanał publikujący utwór nie zawsze należy do jego artysty. Ładowanie odbywa się w tle; przejście do innego wykonawcy anuluje poprzednie zapytanie.
+Click the artist's name below a track in search results, a playlist, recommendations, or the bottom player bar to open their channel inside the application. The view shows tracks from the YouTube channel or SoundCloud profile in batches of 30; **Show more** loads the next batch. You can play the entire loaded list, start from a selected track, or use `+` to add a track to a queue or playlist. **Back** returns to the previous screen. Browsing alone does not interrupt music or change the queue.
 
+New search results and imports retain the channel address. For older entries, the application tries to retrieve it from the track's URL. If the channel cannot be identified, it shows clearly labelled search results for the artist's name on the same platform; these may include recordings from other channels. Content depends on the source's public availability, and the channel publishing a track does not always belong to its artist. Loading runs in the background; switching to another artist cancels the previous request.
 
-## Dysk Google (Google Drive)
+## Google Drive
 
-W **Ustawienia → Dysk Google** dostępne są logowanie przez Google, automatyczny zapis kopii, **Zapisz kopię teraz**, **Przywróć kopię…** i wylogowanie. Połączenia sieciowe i oczekiwanie na logowanie działają w tle; przycisk **Anuluj** zatrzymuje oczekiwanie. Sesja jest wznawiana po ponownym uruchomieniu aplikacji. Przy braku sieci nadal można korzystać z lokalnej biblioteki.
+**Settings → Google Drive** provides Google sign-in, automatic backups, **Back up now**, **Restore backup…**, and sign-out. Network requests and sign-in waiting run in the background; **Cancel** stops waiting. The session resumes when you restart the application. Your local library remains usable offline.
 
-### Jednorazowa konfiguracja Google
+### One-time Google configuration
 
-Google wymaga zarejestrowanego klienta OAuth aplikacji. Repozytorium nie zawiera konfiguracji czy konta autora — trzeba raz przygotować własny projekt:
+Google requires a registered OAuth client for the application. This repository does not include the author's configuration or account, so you need to set up your own project once:
 
-1. W [Google Cloud Console](https://console.cloud.google.com/) utwórz lub wybierz projekt i włącz **Google Drive API** w bibliotece API.
-2. Skonfiguruj **Google Auth Platform / ekran zgody OAuth**: nazwę aplikacji i adres kontaktowy. Dla aplikacji w trybie testowym dodaj swój adres Google do użytkowników testowych.
-3. W dostępie do danych dodaj zakres `https://www.googleapis.com/auth/drive.appdata`.
-4. Utwórz **OAuth Client ID → Desktop app / Aplikacja komputerowa** i pobierz plik JSON klienta.
-5. Uruchom aplikację przez `bash start.sh`. W ustawieniach kliknij **Wybierz konfigurację Google…**, wskaż pobrany JSON i wybierz **Zaloguj przez Google**. Dokończ zgodę w przeglądarce systemowej.
-6. Na drugim komputerze skonfiguruj klienta z tego samego projektu Google i zaloguj się na to samo konto, a następnie wybierz **Przywróć kopię…**.
+1. In [Google Cloud Console](https://console.cloud.google.com/), create or select a project and enable **Google Drive API** in the API library.
+2. Configure **Google Auth Platform / the OAuth consent screen** with an application name and contact email. If the application is in testing mode, add your Google email address to the test users.
+3. Under data access, add the `https://www.googleapis.com/auth/drive.appdata` scope.
+4. Create an **OAuth Client ID → Desktop app** and download the client JSON file.
+5. Start the application with `bash start.sh`. In settings, click **Choose Google configuration…**, select the downloaded JSON file, and choose **Sign in with Google**. Complete the consent flow in your system browser.
+6. On another computer, configure a client from the same Google project and sign in to the same account, then select **Restore backup…**.
 
-Instrukcje źródłowe Google: [OAuth dla aplikacji desktopowych](https://developers.google.com/identity/protocols/oauth2/native-app) oraz [dane aplikacji na Dysku](https://developers.google.com/workspace/drive/api/guides/appdata).
+Official Google instructions: [OAuth for desktop applications](https://developers.google.com/identity/protocols/oauth2/native-app) and [application data on Drive](https://developers.google.com/workspace/drive/api/guides/appdata).
 
-### Co jest zapisywane
+### What is backed up
 
-Kopia zawiera playlisty, okładki oraz ustawienia języka, wyglądu i odtwarzania. Historię słuchania można dołączyć osobnym przełącznikiem (domyślnie wyłączony). Pliki audio, cache, dane logowania i konfiguracja OAuth nie są wysyłane. Limit jednej kopii to 40 MB, a pojedynczej okładki 5 MB.
+Backups include playlists, covers, and language, appearance, and playback settings. Listening history can be included using a separate toggle (disabled by default). Audio files, caches, sign-in credentials, and OAuth configuration are not uploaded. Each backup is limited to 40 MB, and each cover to 5 MB.
 
-Kopie trafiają do prywatnego obszaru **appDataFolder** na Dysku Google, a nie do widocznego folderu „Mój dysk”. Aplikacja prosi wyłącznie o zakres `drive.appdata`. Plik konfiguracji jest lokalnie zapisany jako `~/.config/music-crow/credentials.json`, a token sesji jako `google_token.json`, z uprawnieniami tylko dla właściciela. Wylogowanie usuwa lokalny token; nie kasuje danych z Dysku. Uprawnienia aplikacji można też odwołać w ustawieniach konta Google.
+Backups are stored in Google Drive's private **appDataFolder**, rather than the visible “My Drive” folder. The application requests only the `drive.appdata` scope. The configuration file is stored locally as `~/.config/music-crow/credentials.json`, and the session token as `google_token.json`, with owner-only permissions. Signing out removes the local token without deleting data from Drive. You can also revoke the application's access in your Google account settings.
 
-### Zapis i przywracanie
+### Saving and restoring
 
-Automatyczny zapis działa po 3 sekundach od zmian oraz sprawdza stan co 5 minut. Identyczne dane nie są przesyłane ponownie. Każda instalacja aktualizuje własny plik kopii; kopie innych urządzeń pozostają osobne. To zapis kopii z ręcznym przywracaniem, bez automatycznego nadpisywania bibliotek między urządzeniami. Ręczny **Zapisz kopię teraz** działa również przy wyłączonym zapisie automatycznym.
+Automatic backup runs 3 seconds after changes and checks the data every 5 minutes. Identical data is not uploaded again. Each installation updates its own backup file; backups from other devices remain separate. This is a backup system with manual restoration, without automatic overwriting of libraries across devices. **Back up now** also works when automatic backups are disabled.
 
-Przywracanie najpierw pobiera i sprawdza całą kopię, następnie pokazuje liczbę playlist i utworów do potwierdzenia. Bieżące dane trafiają do `~/.config/music-crow/recovery/`. Ustawienia zostają przywrócone; playlisty są dołączane bez usuwania istniejących. Różniąca się playlista o tej samej nazwie otrzyma dopisek **(Google Drive)**, identyczna nie zostanie zdublowana. Historia jest łączona bez ponownego naliczania tych samych odsłuchań. Okładki dostają ścieżki właściwe dla bieżącego komputera. Zmiany są widoczne bez restartu i nie przerywają odtwarzania.
+Restoration first downloads and validates the entire backup, then shows the playlist and track counts for confirmation. Current data is saved to `~/.config/music-crow/recovery/`. Settings are restored, while playlists are added without deleting existing ones. A different playlist with the same name receives the **(Google Drive)** suffix; an identical playlist is not duplicated. Listening history is merged without counting the same plays again. Cover paths are adjusted for the current computer. Changes take effect without a restart and do not interrupt playback.
 
-Testy protokołu OAuth/Drive używają kontrolowanych odpowiedzi i obejmują PKCE, weryfikację stanu logowania, anulowanie, zakres dostępu, pliki poszczególnych urządzeń, odtwarzanie danych i wycofanie zapisu po błędzie. Pełny test z prawdziwym kontem wymaga własnego pliku OAuth i zgody użytkownika w przeglądarce.
+OAuth/Drive protocol tests use controlled responses and cover PKCE, sign-in state validation, cancellation, access scopes, per-device files, data restoration, and rollback after a write failure. A full test with a real account requires your own OAuth file and consent in the browser.

@@ -5,6 +5,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, QCoreApplication, QTranslator, QLi
 
 # Polish source strings are stable identifiers for the interface.
 EN = {
+    'Upuść utwór tutaj, aby odtworzyć go jako następny.': 'Drop a track here to play it next.',
     'DYSK GOOGLE': 'GOOGLE DRIVE',
     'Zapisuj ustawienia, playlisty i okładki na swoim Dysku Google. Każde urządzenie ma osobną kopię.': 'Back up settings, playlists and covers to your Google Drive. Each device keeps a separate backup.',
     'Wybierz konfigurację Google…': 'Choose Google configuration…',
@@ -109,6 +110,7 @@ EN = {
     'Pobieram następny utwór…': 'Downloading the next track…', 'Następny utwór gotowy': 'Next track ready',
     'Następny utwór odtworzy się online': 'Next track will stream online', 'Odtwarzanie 🎵': 'Playing 🎵',
     'TWÓJ MUZYCZNY ŚWIAT': 'YOUR MUSIC WORLD', 'Uruchamianie odtwarzacza...': 'Starting the player...', 'Uruchamianie...': 'Starting…',
+    'Nie udało się uruchomić aplikacji. Szczegóły znajdziesz w terminalu.': 'The application could not start. Check the terminal for details.',
     'Dopasowane do Twojej historii i playlist.': 'Based on your listening history and playlists.',
     'Posłuchaj muzyki lub dodaj utwory do playlist, aby otrzymać propozycje.': 'Listen to music or add tracks to playlists to get recommendations.',
     'Szukam muzyki dopasowanej do Ciebie…': 'Finding music for you…',

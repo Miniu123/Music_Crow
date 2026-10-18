@@ -259,6 +259,63 @@ class MusicPlayer(QObject):
             self._priority_queue.insert(to_index, track)
             self.queue_updated.emit()
 
+    def upcoming_base_tracks(self):
+        if self._shuffle:
+            return [self._base_queue[i] for i in self._shuffled_indices
+                    if 0 <= i < len(self._base_queue)]
+        return self._base_queue[self._current_base_index + 1:]
+
+    def queue_edit_snapshot(self):
+        """Identity and order of the editable main queue, including duplicate URLs."""
+        return (self._queue_session, self._shuffle, self._current_base_index,
+                tuple(id(track) for track in self._priority_queue),
+                tuple(id(track) for track in self.upcoming_base_tracks()))
+
+    def move_queue_item(self, source, index, target, position, expected_key=None, snapshot=None):
+        """Insert at a boundary in the displayed queue; reject a stale main-queue view."""
+        if snapshot is not None and snapshot != self.queue_edit_snapshot():
+            return False
+        if target not in ('priority', 'base') or source not in ('priority', 'base', 'recommended'):
+            return False
+        destination = self._priority_queue if target == 'priority' else self.upcoming_base_tracks()
+        if not 0 <= position <= len(destination):
+            return False
+        if source == 'recommended':
+            return self.promote_recommended(index, target, position, expected_key)
+        origin = self._priority_queue if source == 'priority' else self.upcoming_base_tracks()
+        if not 0 <= index < len(origin):
+            return False
+        if expected_key is not None and track_key(origin[index]) != expected_key:
+            return False
+        if source == target:
+            adjusted = position - (index < position)
+            if adjusted == index:
+                return True
+            if source == 'priority':
+                self.move_priority_track(index, adjusted)
+            else:
+                self.move_upcoming_base_track(index, adjusted)
+            return True
+
+        if source == 'priority':
+            track = self._priority_queue.pop(index)
+        else:
+            absolute = self._shuffled_indices[index] if self._shuffle else self._current_base_index + 1 + index
+            track = self._base_queue.pop(absolute)
+            self._shuffled_indices = [i - (i > absolute) for i in self._shuffled_indices if i != absolute]
+            if absolute <= self._current_base_index:
+                self._current_base_index -= 1
+        if target == 'priority':
+            self._priority_queue.insert(position, track)
+        elif self._shuffle:
+            self._base_queue.append(track)
+            self._shuffled_indices.insert(position, len(self._base_queue) - 1)
+        else:
+            self._base_queue.insert(self._current_base_index + 1 + position, track)
+        self._recommendation_seen.add(track_key(track))
+        self.queue_updated.emit()
+        return True
+
     def move_upcoming_base_track(self, from_relative_idx: int, to_relative_idx: int):
         if self._shuffle:
             if 0 <= from_relative_idx < len(self._shuffled_indices) and 0 <= to_relative_idx < len(self._shuffled_indices):

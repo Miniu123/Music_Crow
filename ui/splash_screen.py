@@ -1,319 +1,194 @@
-from core.i18n import text, set_text
-import os
+"""Painted startup animation, driven by elapsed time and real UI readiness."""
 import math
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QProgressBar, QGraphicsOpacityEffect
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, pyqtSignal, QRectF
-from PyQt6.QtGui import QPainter, QColor, QRadialGradient, QLinearGradient, QPixmap, QFont, QPainterPath
+import os
+
+from PyQt6.QtCore import QElapsedTimer, QRectF, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPixmap, QRadialGradient
+from PyQt6.QtWidgets import QWidget
+
+from core.i18n import tr
 
 
-class AnimatedLogo(QWidget):
-    """
-    High-fidelity animated Crow logo widget with sub-pixel scaling,
-    radial neon breathing glow, and expanding energy ripple effect.
-    """
-
-    def __init__(self, icon_path, parent=None):
-        super().__init__(parent)
-        self.setFixedSize(160, 160)
-        self.icon_path = icon_path
-        self._pixmap = None
-        if os.path.exists(icon_path):
-            self._pixmap = QPixmap(icon_path)
-
-        self._phase = 0.0
-        self._ripple_radius = 45.0
-        self._ripple_opacity = 0.0
-
-        # Animation timer (60 FPS for ultra-smooth fluid motion)
-        self._timer = QTimer(self)
-        self._timer.setInterval(16)
-        self._timer.timeout.connect(self._on_tick)
-        self._timer.start()
-
-    def _on_tick(self):
-        self._phase += 0.04
-        if self._phase > 2 * math.pi:
-            self._phase -= 2 * math.pi
-
-        # Expanding ripple wave
-        self._ripple_radius += 0.6
-        if self._ripple_radius > 75.0:
-            self._ripple_radius = 42.0
-
-        # Ripple opacity fades out as it expands
-        norm = (self._ripple_radius - 42.0) / 33.0  # 0.0 -> 1.0
-        self._ripple_opacity = max(0.0, min(1.0, math.sin(norm * math.pi)))
-
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-
-        cx = self.width() / 2.0
-        cy = self.height() / 2.0
-
-        # Gentle floating offset
-        float_y = 2.0 * math.sin(self._phase)
-        center_y = cy + float_y
-
-        # Scale breathing (1.0 -> 1.045)
-        scale = 1.0 + 0.04 * math.sin(self._phase)
-        glow_intensity = 0.55 + 0.35 * (0.5 + 0.5 * math.sin(self._phase))
-
-        # 1. Outer ambient radial purple glow
-        glow_r = 72.0 * scale
-        radial = QRadialGradient(cx, center_y, glow_r)
-        c_core = QColor(139, 92, 246, int(140 * glow_intensity))
-        c_mid = QColor(99, 102, 241, int(60 * glow_intensity))
-        c_edge = QColor(139, 92, 246, 0)
-        radial.setColorAt(0.0, c_core)
-        radial.setColorAt(0.5, c_mid)
-        radial.setColorAt(1.0, c_edge)
-
-        painter.setBrush(radial)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(QRectF(cx - glow_r, center_y - glow_r, glow_r * 2, glow_r * 2))
-
-        # 2. Expanding energy ripple ring
-        if self._ripple_opacity > 0.01:
-            ring_pen = QColor(167, 139, 250, int(90 * self._ripple_opacity))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(ring_pen)
-            r_rad = self._ripple_radius
-            painter.drawEllipse(QRectF(cx - r_rad, center_y - r_rad, r_rad * 2, r_rad * 2))
-
-        # 3. Draw high-resolution anti-aliased logo
-        if self._pixmap and not self._pixmap.isNull():
-            base_size = 80.0 * scale
-            draw_x = cx - base_size / 2.0
-            draw_y = center_y - base_size / 2.0
-            target_rect = QRectF(draw_x, draw_y, base_size, base_size)
-            source_rect = QRectF(self._pixmap.rect())
-            painter.drawPixmap(target_rect, self._pixmap, source_rect)
-        else:
-            font = QFont("Segoe UI Emoji", int(40 * scale))
-            painter.setFont(font)
-            painter.setPen(QColor("#FFFFFF"))
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "🎵")
+def _ease(value):
+    value = max(0.0, min(1.0, value))
+    return 1.0 - (1.0 - value) ** 3
 
 
 class SplashScreen(QWidget):
-    """
-    Ultra-sleek dark glassmorphism splash screen with soft drop shadow,
-    pulsing neon logo, fluid interpolated progress bar, and buttery transitions.
-    """
-
+    transition_started = pyqtSignal()
     finished = pyqtSignal()
+    MIN_VISIBLE_MS = 950
+    EXIT_MS = 260
 
-    def __init__(self, icon_path=None, parent=None):
+    def __init__(self, icon_path=None, parent=None, accent="#9672FF"):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.SplashScreen)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedSize(520, 380)
-
-        # Robust multi-monitor centering
+        self.setFixedSize(520, 392)
+        self.setAccessibleName("Music Crow")
+        self.setAccessibleDescription(tr('Uruchamianie odtwarzacza...'))
         screen = self.screen()
         if screen:
-            geo = screen.availableGeometry()
-            self.move(
-                geo.x() + (geo.width() - self.width()) // 2,
-                geo.y() + (geo.height() - self.height()) // 2
-            )
-
-        if not icon_path:
-            icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "icon.png")
-
-        # Opacity effect for smooth window fade-in / fade-out
-        self._opacity_effect = QGraphicsOpacityEffect(self)
-        self._opacity_effect.setOpacity(0.0)
-        self.setGraphicsEffect(self._opacity_effect)
-
-        # Layout inside the glass card (20px padding accounts for drop shadow)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(50, 40, 50, 42)
-        layout.setSpacing(10)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # Animated Logo
-        self.logo_widget = AnimatedLogo(icon_path, self)
-        layout.addWidget(self.logo_widget, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        # Title
-        self.title_label = QLabel("Music Crow", self)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.title_label.setStyleSheet("""
-            font-size: 29px;
-            font-weight: 800;
-            color: #FFFFFF;
-            letter-spacing: 1.5px;
-            background: transparent;
-        """)
-        layout.addWidget(self.title_label)
-
-        # Tagline
-        self.tagline_label = text(QLabel("", self), 'TWÓJ MUZYCZNY ŚWIAT')
-        self.tagline_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.tagline_label.setStyleSheet("""
-            font-size: 10px;
-            font-weight: 700;
-            color: #9672FF;
-            letter-spacing: 3.5px;
-            background: transparent;
-            margin-bottom: 6px;
-        """)
-        layout.addWidget(self.tagline_label)
-
-        layout.addSpacing(6)
-
-        # Sleek Neon Progress Bar
-        self.progress_bar = QProgressBar(self)
-        self.progress_bar.setFixedHeight(5)
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                background-color: rgba(255, 255, 255, 0.08);
-                border: none;
-                border-radius: 2px;
-            }
-            QProgressBar::chunk {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #9672FF,
-                    stop:0.6 #6366F1,
-                    stop:1 #06B6D4
-                );
-                border-radius: 2px;
-            }
-        """)
-        layout.addWidget(self.progress_bar)
-
-        # Status text
-        self.status_label = text(QLabel("", self), 'Uruchamianie odtwarzacza...')
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("""
-            font-size: 11px;
-            font-weight: 500;
-            color: #7E7E94;
-            background: transparent;
-        """)
-        layout.addWidget(self.status_label)
-
-        # Smooth simulation stages
-        self._steps = [
-            (25, "Inicjalizacja silnika MPV i kodeków..."),
-            (50, "Wczytywanie playlist i biblioteki utworów..."),
-            (75, "Ładowanie motywów i korektora graficznego..."),
-            (92, "Przygotowywanie interfejsu użytkownika..."),
-            (100, "Wszystko gotowe! Uruchamianie...")
-        ]
-        self._current_step_idx = 0
-        self._target_progress = 0.0
-        self._current_progress = 0.0
-        self._is_finishing = False
-
-        # Fluid progress interpolation timer (60 FPS)
-        self._progress_timer = QTimer(self)
-        self._progress_timer.setInterval(16)
-        self._progress_timer.timeout.connect(self._on_progress_tick)
-
-        # Step advancement timer
-        self._step_timer = QTimer(self)
-        self._step_timer.setInterval(300)
-        self._step_timer.timeout.connect(self._advance_step)
-
-    def paintEvent(self, event):
-        """Draw sleek rounded glass card with ambient dark shadow and glowing border."""
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Card rect (leaving 16px around for shadow effect)
-        margin = 16.0
-        card_rect = QRectF(margin, margin, self.width() - 2 * margin, self.height() - 2 * margin)
-
-        # 1. Ambient soft drop shadow behind the card
-        for i in range(1, 5):
-            shadow_rect = card_rect.adjusted(-i * 2.5, -i * 2.5, i * 2.5, i * 2.5)
-            shadow_path = QPainterPath()
-            shadow_path.addRoundedRect(shadow_rect, 22 + i, 22 + i)
-            shadow_col = QColor(0, 0, 0, int(35 / i))
-            painter.fillPath(shadow_path, shadow_col)
-
-        # 2. Main Glass Card Background
-        card_path = QPainterPath()
-        card_path.addRoundedRect(card_rect, 22, 22)
-
-        bg_gradient = QLinearGradient(0, card_rect.top(), 0, card_rect.bottom())
-        bg_gradient.setColorAt(0.0, QColor(22, 20, 34, 248))
-        bg_gradient.setColorAt(0.5, QColor(16, 14, 24, 252))
-        bg_gradient.setColorAt(1.0, QColor(10, 10, 16, 255))
-        painter.fillPath(card_path, bg_gradient)
-
-        # 3. Glowing neon border
-        border_pen = QColor(139, 92, 246, 60)
-        painter.setPen(border_pen)
-        painter.drawPath(card_path)
+            self.move(screen.availableGeometry().center() - self.rect().center())
+        icon_path = icon_path or os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "icon.png")
+        self._pixmap = QPixmap(icon_path)
+        self._accent = QColor(accent)
+        if not self._accent.isValid():
+            self._accent = QColor("#9672FF")
+        self._clock = QElapsedTimer()
+        self._elapsed = 0
+        self._ready_at = None
+        self._exit_at = None
+        self._skip_requested = False
+        self._completed = False
+        self._timer = QTimer(self)
+        self._timer.setTimerType(Qt.TimerType.PreciseTimer)
+        self._timer.setInterval(16)
+        self._timer.timeout.connect(self._tick)
 
     def start_animation(self):
-        """Fade in and start loading."""
-        self._anim_fade_in = QPropertyAnimation(self._opacity_effect, b"opacity")
-        self._anim_fade_in.setDuration(400)
-        self._anim_fade_in.setStartValue(0.0)
-        self._anim_fade_in.setEndValue(1.0)
-        self._anim_fade_in.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self._anim_fade_in.start()
+        if self._clock.isValid() or self._completed:
+            return
+        self._clock.start()
+        self._timer.start()
+        self.update()
 
-        self._progress_timer.start()
-        self._step_timer.start()
-
-    def _advance_step(self):
-        if self._current_step_idx < len(self._steps):
-            pct, msg = self._steps[self._current_step_idx]
-            self._target_progress = float(pct)
-            set_text(self.status_label, msg)
-            self._current_step_idx += 1
-        else:
-            self._step_timer.stop()
-
-    def _on_progress_tick(self):
-        # Smooth asymptotic interpolation towards target
-        diff = self._target_progress - self._current_progress
-        if diff > 0.1:
-            self._current_progress += diff * 0.12
-            self.progress_bar.setValue(int(self._current_progress))
-        elif self._current_step_idx >= len(self._steps) and self._current_progress >= 99.0:
-            self.progress_bar.setValue(100)
-            self._progress_timer.stop()
-            QTimer.singleShot(220, self.finish_and_close)
-
-    def mousePressEvent(self, event):
-        """Allows instant skip if the user clicks on the splash screen."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._step_timer.stop()
-            self._progress_timer.stop()
-            self.progress_bar.setValue(100)
-            set_text(self.status_label, 'Uruchamianie...', 'text')
-            self.finish_and_close()
-        super().mousePressEvent(event)
+    def mark_ready(self):
+        """Only the creator of the main window can complete loading."""
+        if self._ready_at is None and not self._completed:
+            self._ready_at = self._clock.elapsed() if self._clock.isValid() else 0
+            self.setAccessibleDescription(tr('Wszystko gotowe! Uruchamianie...'))
+            self._tick()
 
     def finish_and_close(self):
-        """Smoothly fades out the splash screen and signals finished."""
-        if self._is_finishing:
+        """Skip the minimum display time, but never skip initialization."""
+        self._skip_requested = True
+        self._tick()
+
+    def _tick(self):
+        if not self._clock.isValid() or self._completed:
             return
-        self._is_finishing = True
+        self._elapsed = self._clock.elapsed()
+        if self._ready_at is not None and self._exit_at is None:
+            deadline = max(self.MIN_VISIBLE_MS, self._ready_at + 280)
+            if self._skip_requested or self._elapsed >= deadline:
+                self._exit_at = self._elapsed
+                # Reveal the main window behind this card before removing it.
+                self.transition_started.emit()
+                self.raise_()
+        if self._exit_at is not None and self._elapsed - self._exit_at >= self.EXIT_MS:
+            self._completed = True
+            self._timer.stop()
+            self.finished.emit()
+            self.hide()
+            self.deleteLater()
+            return
+        self.update()
 
-        self._anim_fade_out = QPropertyAnimation(self._opacity_effect, b"opacity")
-        self._anim_fade_out.setDuration(320)
-        self._anim_fade_out.setStartValue(self._opacity_effect.opacity())
-        self._anim_fade_out.setEndValue(0.0)
-        self._anim_fade_out.setEasingCurve(QEasingCurve.Type.InCubic)
-        self._anim_fade_out.finished.connect(self._on_fade_out_finished)
-        self._anim_fade_out.start()
+    def hideEvent(self, event):
+        self._timer.stop()
+        super().hideEvent(event)
 
-    def _on_fade_out_finished(self):
-        self.hide()
-        self.finished.emit()
-        self.deleteLater()
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.finish_and_close()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def _color(self, alpha):
+        color = QColor(self._accent)
+        color.setAlpha(max(0, min(255, int(alpha))))
+        return color
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
+        elapsed = self._elapsed
+        opacity = _ease(elapsed / 300)
+        if self._exit_at is not None:
+            opacity *= 1.0 - _ease((elapsed - self._exit_at) / self.EXIT_MS)
+        painter.setOpacity(opacity)
+        card = QRectF(16, 16, 488, 360)
+        for spread in range(12, 0, -2):
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(0, 0, 0, 9))
+            painter.drawRoundedRect(card.adjusted(-spread, -spread / 2, spread, spread), 26, 26)
+        path = QPainterPath()
+        path.addRoundedRect(card, 24, 24)
+        background = QLinearGradient(card.topLeft(), card.bottomRight())
+        background.setColorAt(0, QColor("#1B2033"))
+        background.setColorAt(1, QColor("#0D111D"))
+        painter.fillPath(path, background)
+        painter.save()
+        painter.setClipPath(path)
+        ambient = QRadialGradient(260, 70, 245)
+        ambient.setColorAt(0, self._color(36))
+        ambient.setColorAt(1, self._color(0))
+        painter.fillRect(card, ambient)
+        painter.restore()
+        painter.setPen(self._color(65))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(path)
+
+        # Logo arrives once, then gently breathes without bouncing or ripples.
+        reveal = _ease(elapsed / 520)
+        pulse = math.sin(elapsed / 850)
+        center_y = 116 + 12 * (1 - reveal)
+        painter.save()
+        painter.setOpacity(opacity * reveal)
+        halo = QRadialGradient(260, center_y, 86)
+        halo.setColorAt(0, self._color(70 + pulse * 12))
+        halo.setColorAt(1, self._color(0))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(halo)
+        painter.drawEllipse(QRectF(174, center_y - 86, 172, 172))
+        size = 96 * (0.88 + 0.12 * reveal)
+        if not self._pixmap.isNull():
+            painter.drawPixmap(QRectF(260 - size / 2, center_y - size / 2, size, size), self._pixmap, QRectF(self._pixmap.rect()))
+        else:
+            painter.setPen(QColor("#F4F3FF"))
+            painter.setFont(QFont("sans-serif", 38))
+            painter.drawText(QRectF(210, 66, 100, 100), Qt.AlignmentFlag.AlignCenter, "♫")
+        painter.restore()
+
+        self._draw_text(painter, "Music Crow", 184, 42, 30, QColor("#F5F5FC"), opacity * _ease((elapsed - 90) / 400), bold=True)
+        self._draw_text(painter, tr('TWÓJ MUZYCZNY ŚWIAT'), 230, 24, 10, self._color(225), opacity * _ease((elapsed - 180) / 400), tracking=2.2)
+
+        # Small sound bars provide motion while waiting; no invented percentages.
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(self._color(225))
+        painter.setOpacity(opacity * _ease((elapsed - 240) / 350))
+        for index in range(7):
+            height = 5 + 12 * (0.5 + 0.5 * math.sin(elapsed / 230 + index * 0.8))
+            painter.drawRoundedRect(QRectF(233 + index * 8, 284 - height / 2, 5, height), 2.5, 2.5)
+        status = 'Wszystko gotowe! Uruchamianie...' if self._ready_at is not None else 'Uruchamianie odtwarzacza...'
+        self._draw_text(painter, tr(status), 305, 22, 11, QColor("#A5ADC2"), opacity * _ease((elapsed - 200) / 400))
+
+        painter.setOpacity(opacity)
+        rail = QRectF(92, 343, 336, 3)
+        painter.setBrush(QColor("#292F43"))
+        painter.drawRoundedRect(rail, 1.5, 1.5)
+        offset = (0.5 - 0.5 * math.cos(elapsed / 480)) * 0.76
+        width = 0.24
+        if self._ready_at is not None:
+            completion = _ease((elapsed - self._ready_at) / 280)
+            offset = (0.5 - 0.5 * math.cos(self._ready_at / 480)) * 0.76 * (1 - completion)
+            width += 0.76 * completion
+        gradient = QLinearGradient(rail.topLeft(), rail.topRight())
+        gradient.setColorAt(0, self._accent)
+        gradient.setColorAt(1, QColor("#66D4DF"))
+        painter.setBrush(gradient)
+        painter.drawRoundedRect(QRectF(rail.x() + rail.width() * offset, rail.y(), rail.width() * width, rail.height()), 1.5, 1.5)
+
+    def _draw_text(self, painter, value, top, height, size, color, opacity, bold=False, tracking=0):
+        painter.save()
+        painter.setOpacity(opacity)
+        font = QFont(self.font())
+        font.setPixelSize(size)
+        font.setWeight(QFont.Weight.Bold if bold else QFont.Weight.Normal)
+        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, tracking)
+        painter.setFont(font)
+        painter.setPen(color)
+        painter.drawText(QRectF(40, top, 440, height), Qt.AlignmentFlag.AlignCenter, value)
+        painter.restore()

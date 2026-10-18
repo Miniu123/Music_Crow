@@ -1,11 +1,11 @@
 from ui.artist_button import ArtistButton
 from core.i18n import text, set_text
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame, QHBoxLayout, QPushButton, QSizePolicy, QApplication, QSplitter
+    QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame, QHBoxLayout, QPushButton, QSizePolicy, QApplication, QSplitter, QLayout
 )
 import json
 
-from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QTimer, QEvent
 from PyQt6.QtGui import QPixmap, QDrag
 
 from ui.icons import icon
@@ -20,6 +20,7 @@ class QueueTrackCard(QFrame):
     """A track card within the queue view."""
     
     drag_state_changed = pyqtSignal(bool)
+    drag_started = pyqtSignal(object)
     play_clicked = pyqtSignal(dict)
     artist_requested = pyqtSignal(dict)
     play_next_clicked = pyqtSignal(int, str)
@@ -33,6 +34,8 @@ class QueueTrackCard(QFrame):
         self.queue_type = queue_type
         self.is_priority = is_priority
         self.drag_start_position = None
+        self._gesture_active = False
+        self._native_drag_active = False
         self.setObjectName("QueueTrackCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(94 if queue_type == "recommended" else 68)
@@ -166,17 +169,30 @@ class QueueTrackCard(QFrame):
         self.thumbnail_label.setPixmap(rounded)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton and not isinstance(self.childAt(event.pos()), QPushButton):
             self.drag_start_position = event.pos()
             self._dragged = False
+            self._set_gesture_active(True)
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
+        if self._native_drag_active:
+            # The platform may release the source's mouse grab when native DnD
+            # takes over. Only QDrag.exec() finishing ends this drag gesture.
+            event.accept()
+            return
         if event.button() == Qt.MouseButton.LeftButton:
-            if self.drag_start_position is not None and not getattr(self, "_dragged", False):
+            if (self.drag_start_position is not None and not getattr(self, "_dragged", False)
+                    and self.rect().contains(event.pos())):
                 self.play_clicked.emit(self.track)
             self.drag_start_position = None
+            self._set_gesture_active(False)
         super().mouseReleaseEvent(event)
+
+    def _set_gesture_active(self, active):
+        if self._gesture_active != active:
+            self._gesture_active = active
+            self.drag_state_changed.emit(active)
 
     def mouseMoveEvent(self, event):
         if (self.drag_start_position is None or self.queue_type == "now_playing"
@@ -193,86 +209,138 @@ class QueueTrackCard(QFrame):
         drag.setMimeData(mime_data)
         drag.setPixmap(self.grab())
         drag.setHotSpot(event.pos())
-        self.drag_state_changed.emit(True)
+        self._set_gesture_active(True)
+        self._native_drag_active = True
         try:
+            self.drag_started.emit(self)
             drag.exec(Qt.DropAction.MoveAction)
         finally:
+            self._native_drag_active = False
             self.drag_start_position = None
-            self.drag_state_changed.emit(False)
+            self._set_gesture_active(False)
 
 
 class DropContainer(QWidget):
     item_moved = pyqtSignal(int, int)
     recommendation_dropped = pyqtSignal(int, int, str)
 
-    def __init__(self, queue_type: str, parent=None):
+    def __init__(self, queue_type: str, parent=None, can_drop=None, move_item=None):
         super().__init__(parent)
         self.queue_type = queue_type
+        self._can_drop = can_drop
+        self._move_item = move_item
+        self._drop_position = None
         self.setAcceptDrops(True)
         self.setObjectName("QueueDropTarget")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setMinimumHeight(48)
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(4, 4, 4, 4)
-        self.layout.setSpacing(6)
+        self.layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
+        self.layout.setContentsMargins(4, 8, 4, 8)
+        self.layout.setSpacing(8)
         self.setProperty("dragOver", False)
+        # An overlay does not change card geometry as the insertion position moves.
+        self.drop_indicator = QFrame(self)
+        self.drop_indicator.setObjectName("QueueDropIndicator")
+        self.drop_indicator.setStyleSheet('background: #B39AFF; border: none; border-radius: 2px;')
+        self.drop_indicator.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.drop_indicator.hide()
 
     def _payload(self, event):
         source = event.source()
         if not isinstance(source, QueueTrackCard) or not event.mimeData().hasFormat(QUEUE_MIME):
+            return None
+        if self._can_drop and not self._can_drop(source):
             return None
         try:
             payload = json.loads(bytes(event.mimeData().data(QUEUE_MIME)))
             if (payload.get("queue") != source.queue_type or payload.get("index") != source.index
                     or payload.get("key") != track_key(source.track)):
                 return None
-            if payload["queue"] == self.queue_type and self.queue_type in ("priority", "base"):
-                return payload
-            if payload["queue"] == "recommended" and self.queue_type in ("priority", "base"):
+            if payload['queue'] in ('priority', 'base', 'recommended') and self.queue_type in ('priority', 'base'):
                 return payload
         except (ValueError, TypeError, AttributeError, KeyError):
             pass
         return None
 
+    def _cards(self):
+        return [self.layout.itemAt(i).widget() for i in range(self.layout.count())
+                if isinstance(self.layout.itemAt(i).widget(), QueueTrackCard)]
+
+    def insertion_position(self, y):
+        for index, card in enumerate(self._cards()):
+            if y < card.y() + card.height() / 2:
+                return index
+        return len(self._cards())
+
+    def _show_position(self, y):
+        cards = self._cards()
+        position = self.insertion_position(y)
+        self._drop_position = position
+        if not cards:
+            line_y = self.height() // 2
+        elif position == 0:
+            line_y = cards[0].y() - 4
+        elif position == len(cards):
+            line_y = cards[-1].geometry().bottom() + 4
+        else:
+            line_y = (cards[position - 1].geometry().bottom() + cards[position].y()) // 2
+        self.drop_indicator.setGeometry(8, max(2, min(line_y - 2, self.height() - 6)), max(1, self.width() - 16), 4)
+        self.drop_indicator.raise_()
+        self.drop_indicator.show()
+
     def _highlight(self, value):
-        self.setProperty("dragOver", value)
-        self.style().unpolish(self)
-        self.style().polish(self)
-        self.update()
+        if self.property('dragOver') != value:
+            self.setProperty('dragOver', value)
+            self.style().unpolish(self)
+            self.style().polish(self)
+            self.update()
+
+    def clear_drag(self):
+        self._drop_position = None
+        self.drop_indicator.hide()
+        self._highlight(False)
 
     def dragEnterEvent(self, event):
-        if self._payload(event):
-            self._highlight(True)
-            event.acceptProposedAction()
+        self.dragMoveEvent(event)
 
     def dragMoveEvent(self, event):
         if self._payload(event):
+            self._drag_source = event.source()
+            self._highlight(True)
+            self._show_position(event.position().y())
             event.acceptProposedAction()
+        else:
+            self.clear_drag()
+            event.ignore()
 
     def dragLeaveEvent(self, event):
-        self._highlight(False)
+        self.clear_drag()
         event.accept()
 
     def dropEvent(self, event):
         payload = self._payload(event)
-        self._highlight(False)
+        position = self.insertion_position(event.position().y())
+        self.clear_drag()
         if not payload:
             event.ignore()
             return
-        position = 0
-        for i in range(self.layout.count()):
-            widget = self.layout.itemAt(i).widget()
-            if isinstance(widget, QueueTrackCard):
-                if event.position().y() < widget.y() + widget.height() / 2:
-                    break
-                position += 1
-        event.acceptProposedAction()
-        if payload["queue"] == "recommended":
-            self.recommendation_dropped.emit(payload["index"], position, payload["key"])
-        else:
-            if payload["index"] < position:
+        if self._move_item:
+            accepted = self._move_item(payload, self.queue_type, position)
+            if accepted:
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+        elif payload['queue'] == 'recommended':
+            self.recommendation_dropped.emit(payload['index'], position, payload['key'])
+            event.acceptProposedAction()
+        elif payload['queue'] == self.queue_type:
+            if payload['index'] < position:
                 position -= 1
-            self.item_moved.emit(payload["index"], position)
+            self.item_moved.emit(payload['index'], position)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
 
 class QueuePage(QWidget):
@@ -288,6 +356,7 @@ class QueuePage(QWidget):
         self.thumbnail_manager = ThumbnailManager()
         self._cards = []
         self._drag_active = False
+        self._main_snapshot = None
         self._refresh_pending = False
         self._pri_container = None
         self._base_container = None
@@ -301,7 +370,7 @@ class QueuePage(QWidget):
         title.setObjectName("QueuePageTitle")
         header.addWidget(title)
         header.addStretch()
-        self.btn_shuffle_queue = text(QPushButton(""), 'Losuj playlistę')
+        self.btn_shuffle_queue = text(QPushButton(""), 'Wymieszaj playlistę')
         self.btn_shuffle_queue.setObjectName("RecommendationRefresh")
         self.btn_shuffle_queue.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_shuffle_queue.clicked.connect(self.player.shuffle_queue)
@@ -313,7 +382,7 @@ class QueuePage(QWidget):
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setChildrenCollapsible(False)
         self.playlist_panel, self.playlist_layout, self.playlist_scroll, self.playlist_count = self._panel(
-            "Z playlisty", "Twoja kolejność odtwarzania"
+            "Kolejka", "Twoja kolejność odtwarzania"
         )
         self.recommended_panel, self.recommended_layout, self.recommended_scroll, self.recommended_count = self._panel(
             "Proponowane", "Odtworzą się automatycznie po playliście"
@@ -326,6 +395,15 @@ class QueuePage(QWidget):
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.timeout.connect(self.refresh)
         self.player.queue_updated.connect(lambda: self._refresh_timer.start(0))
+        self._scroll_restore_timer = QTimer(self)
+        self._scroll_restore_timer.setSingleShot(True)
+        self._scroll_restore_timer.timeout.connect(self._restore_scroll)
+        self._saved_scroll_positions = None
+        self._scroll_source = None
+        self._drag_position = None
+        self._drag_scroll_timer = QTimer(self)
+        self._drag_scroll_timer.setInterval(30)
+        self._drag_scroll_timer.timeout.connect(self._scroll_during_drag)
 
     def _panel(self, title, subtitle):
         panel = QFrame()
@@ -349,10 +427,12 @@ class QueuePage(QWidget):
         outer.addWidget(description)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.viewport().setAcceptDrops(True)
         scroll.setObjectName("QueueScrollArea")
         content = QWidget()
         content.setObjectName("QueueTracksContent")
         content_layout = QVBoxLayout(content)
+        content_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         content_layout.setContentsMargins(0, 0, 4, 0)
         content_layout.setSpacing(6)
         content_layout.addStretch()
@@ -367,9 +447,101 @@ class QueuePage(QWidget):
 
     def _on_drag_state_changed(self, active):
         self._drag_active = active
+        if not active:
+            QApplication.instance().removeEventFilter(self)
+            self._drag_scroll_timer.stop()
+            self._scroll_source = None
+            self._drag_position = None
+            for container in (self._pri_container, self._base_container):
+                if container:
+                    container.clear_drag()
         if not active and self._refresh_pending:
             self._refresh_pending = False
             self._refresh_timer.start(0)
+
+    def _begin_drag_scroll(self, card):
+        if self._card_is_current(card):
+            self._scroll_source = card
+            self._drag_position = None
+            QApplication.instance().installEventFilter(self)
+            self._drag_scroll_timer.start()
+
+    def eventFilter(self, watched, event):
+        if self._scroll_source is not None:
+            kind = event.type()
+            if kind in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
+                self._drag_position = None
+                if isinstance(watched, QWidget) and self._card_is_current(self._scroll_source):
+                    try:
+                        data = json.loads(bytes(event.mimeData().data(QUEUE_MIME)))
+                        source = self._scroll_source
+                        if (data.get('queue') == source.queue_type and data.get('index') == source.index
+                                and data.get('key') == track_key(source.track)):
+                            # Event coordinates remain reliable during native DnD,
+                            # including Wayland where QCursor.pos() may be stale.
+                            self._drag_position = watched.mapToGlobal(event.position().toPoint())
+                            if watched in (self.playlist_scroll.viewport(), self.playlist_scroll.widget()):
+                                # Keep receiving moves over margins and gaps too,
+                                # not only while hovering a track's drop container.
+                                event.acceptProposedAction()
+                                return True
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+            elif kind == QEvent.Type.DragLeave:
+                # A following dragEnter/dragMove supplies the new target position.
+                self._drag_position = None
+            elif kind == QEvent.Type.Drop:
+                self._drag_position = None
+                self._drag_scroll_timer.stop()
+                if watched in (self.playlist_scroll.viewport(), self.playlist_scroll.widget()):
+                    source = self._scroll_source
+                    if self._card_is_current(source):
+                        point = watched.mapToGlobal(event.position().toPoint())
+                        base_point = self._base_container.mapFromGlobal(point)
+                        target = self._pri_container if base_point.y() < 0 else self._base_container
+                        position = target.insertion_position(target.mapFromGlobal(point).y())
+                        if self.player.move_queue_item(source.queue_type, source.index, target.queue_type,
+                                                       position, track_key(source.track), source.queue_snapshot):
+                            event.acceptProposedAction()
+                            return True
+                    event.ignore()
+                    return True
+        return super().eventFilter(watched, event)
+
+    def _scroll_during_drag(self):
+        if not self.isVisible() or not self._card_is_current(self._scroll_source):
+            self._drag_scroll_timer.stop()
+            for container in (self._pri_container, self._base_container):
+                if container:
+                    container.clear_drag()
+            return
+        cursor = self._drag_position
+        if cursor is None:
+            return
+        area = next((area for area in (self.playlist_scroll, self.recommended_scroll)
+                     if area.viewport().rect().contains(area.viewport().mapFromGlobal(cursor))), None)
+        if area is None:
+            return
+        viewport = area.viewport()
+        point = viewport.mapFromGlobal(cursor)
+        edge = min(72, max(24, viewport.height() // 3))
+        if point.y() < edge:
+            delta = -max(4, min(32, (edge - point.y()) // 2))
+        elif point.y() > viewport.height() - edge:
+            delta = max(4, min(32, (point.y() - viewport.height() + edge) // 2))
+        else:
+            return
+        bar = area.verticalScrollBar()
+        bar.setValue(bar.value() + delta)
+        # Scrolling moves cards underneath a stationary cursor. Refresh the marker
+        # for the container now underneath it, rather than keeping the old target.
+        for container in (self._pri_container, self._base_container):
+            local = container.mapFromGlobal(cursor)
+            if area is self.playlist_scroll and viewport.rect().contains(point) and container.rect().contains(local):
+                container._highlight(True)
+                container._show_position(local.y())
+            else:
+                container.clear_drag()
 
     @staticmethod
     def _clear(layout, stretch=True):
@@ -389,15 +561,17 @@ class QueuePage(QWidget):
         card = QueueTrackCard(track, index, queue_type=queue_type,
                               is_priority=queue_type in ("priority", "recommended"),
                               compact=queue_type != "now_playing")
+        card.queue_snapshot = self._main_snapshot
         card.artist_requested.connect(self.artist_requested.emit)
         card.drag_state_changed.connect(self._on_drag_state_changed)
+        card.drag_started.connect(self._begin_drag_scroll)
         if queue_type != "now_playing":
-            card.play_clicked.connect(lambda _, kind=queue_type, i=index: self.player.play_queued_track(kind, i))
+            card.play_clicked.connect(lambda _, c=card: self._play_card(c))
         if queue_type == "priority":
-            card.remove_clicked.connect(self._on_remove_priority)
+            card.remove_clicked.connect(lambda _, c=card: self._remove_card(c))
         elif queue_type == "recommended":
-            card.remove_clicked.connect(self.player.remove_recommended)
-            card.play_next_clicked.connect(self._play_next)
+            card.remove_clicked.connect(lambda _, c=card: self._remove_card(c))
+            card.play_next_clicked.connect(lambda _, key, c=card: self._play_next(c, key))
             card.btn_save_playlist.setEnabled(self.playlist_manager is not None)
             card.save_to_playlist.connect(self._save_proposal)
             set_text(card, 'Odtworzy się po playliście. Możesz przeciągnąć go do lewej kolejki lub wybrać Następny.', 'toolTip')
@@ -409,6 +583,11 @@ class QueuePage(QWidget):
         if self._drag_active:
             self._refresh_pending = True
             return
+        self._refresh_timer.stop()
+        if self._saved_scroll_positions is None:
+            self._saved_scroll_positions = (self.playlist_scroll.verticalScrollBar().value(),
+                                            self.recommended_scroll.verticalScrollBar().value())
+        self._main_snapshot = self.player.queue_edit_snapshot()
         self.thumbnail_manager.cancel_all()
         self._cards.clear()
         self._clear(self.now_layout, stretch=False)
@@ -421,14 +600,10 @@ class QueuePage(QWidget):
             self.now_layout.addWidget(self._card(self.player._current_track, 0, "now_playing"))
 
         # Priority items form the beginning of the same visible playlist queue.
-        self._pri_container = DropContainer("priority")
-        self._pri_container.item_moved.connect(self.player.move_priority_track)
-        self._pri_container.recommendation_dropped.connect(
-            lambda index, position, key: self.player.promote_recommended(index, "priority", position, key)
-        )
+        self._pri_container = self._drop_container('priority')
         self._append(self.playlist_layout, self._pri_container)
         if not self.player._priority_queue:
-            hint = text(QLabel(""), 'Upuść propozycję tutaj, aby odtworzyć ją jako następną.')
+            hint = text(QLabel(""), 'Upuść utwór tutaj, aby odtworzyć go jako następny.')
             hint.setObjectName("QueueHint")
             hint.setWordWrap(True)
             hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -436,18 +611,10 @@ class QueuePage(QWidget):
         for i, track in enumerate(self.player._priority_queue):
             self._pri_container.layout.addWidget(self._card(track, i, "priority"))
 
-        if self.player._shuffle:
-            upcoming = [self.player._base_queue[i] for i in self.player._shuffled_indices
-                        if 0 <= i < len(self.player._base_queue)]
-        else:
-            upcoming = self.player._base_queue[self.player._current_base_index + 1:]
-        self._base_container = DropContainer("base")
-        self._base_container.item_moved.connect(self.player.move_upcoming_base_track)
-        self._base_container.recommendation_dropped.connect(
-            lambda index, position, key: self.player.promote_recommended(index, "base", position, key)
-        )
+        upcoming = self.player.upcoming_base_tracks()
+        self._base_container = self._drop_container('base')
         self._append(self.playlist_layout, self._base_container)
-        for i, track in enumerate(upcoming[:101]):
+        for i, track in enumerate(upcoming):
             self._base_container.layout.addWidget(self._card(track, i, "base"))
         if not upcoming:
             empty = text(QLabel(""), 'Po tej kolejce odtworzą się proponowane utwory.')
@@ -469,11 +636,52 @@ class QueuePage(QWidget):
             empty.setWordWrap(True)
             self._append(self.recommended_layout, empty)
 
+        # Qt shows new children and recalculates scroll ranges on the next event-loop turn.
+        self._scroll_restore_timer.start(0)
+
+    def _restore_scroll(self):
+        if self._saved_scroll_positions is None:
+            return
+        for area, position in zip((self.playlist_scroll, self.recommended_scroll), self._saved_scroll_positions):
+            area.widget().layout().activate()
+            area.verticalScrollBar().setValue(position)
+        self._saved_scroll_positions = None
+
+    def _card_is_current(self, card):
+        return (isinstance(card, QueueTrackCard) and card in self._cards
+                and card.queue_snapshot == self.player.queue_edit_snapshot())
+
+    def _drop_container(self, queue_type):
+        snapshot = self._main_snapshot
+        return DropContainer(queue_type, can_drop=self._card_is_current,
+            move_item=lambda payload, target, position: self.player.move_queue_item(
+                payload['queue'], payload['index'], target, position, payload['key'], snapshot))
+
+    def _play_card(self, card):
+        if not self._card_is_current(card):
+            return
+        index = card.index
+        if card.queue_type == 'recommended':
+            index = next((i for i, track in enumerate(self.player._recommended_queue)
+                          if track_key(track) == track_key(card.track)), -1)
+        self.player.play_queued_track(card.queue_type, index)
+
+    def _remove_card(self, card):
+        if not self._card_is_current(card):
+            return
+        if card.queue_type == 'priority':
+            self._on_remove_priority(card.index)
+        else:
+            index = next((i for i, track in enumerate(self.player._recommended_queue)
+                          if track_key(track) == track_key(card.track)), -1)
+            self.player.remove_recommended(index)
+
     def _save_proposal(self, track):
         show_playlist_menu(self, self.playlist_manager, track)
 
-    def _play_next(self, index, key):
-        self.player.promote_recommended(index, "priority", 0, key)
+    def _play_next(self, card, key):
+        if self._card_is_current(card):
+            self.player.promote_recommended(card.index, "priority", 0, key)
 
     def _load_thumb(self, track, card):
         def ready(url, pixmap):

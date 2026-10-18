@@ -3,7 +3,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import json
 import unittest
 from unittest.mock import MagicMock, patch
-from PyQt6.QtCore import QMimeData, QPointF, Qt
+from PyQt6.QtCore import QMimeData, QPoint, QPointF, Qt
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtTest import QTest
@@ -260,10 +260,13 @@ class DragTests(unittest.TestCase):
 
     def test_drag_does_not_start_playback(self):
         card = QueueTrackCard(song('R'), 0, 'recommended')
-        card.resize(500, 68)
+        card.resize(500, 94)
+        card.show()
+        app.processEvents()
+        self.addCleanup(card.close)
         clicked = []
         card.play_clicked.connect(clicked.append)
-        QTest.mousePress(card, Qt.MouseButton.LeftButton)
+        QTest.mousePress(card, Qt.MouseButton.LeftButton, pos=QPoint(20, 20))
         self.assertFalse(clicked)
         with patch('ui.queue_page.QDrag') as drag:
             event = QMouseEvent(QMouseEvent.Type.MouseMove, QPointF(100, 20), QPointF(100, 20),

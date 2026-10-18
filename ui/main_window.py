@@ -144,15 +144,16 @@ class MainWindow(QMainWindow):
         """Smoothly fades in the main window when transitioning from splash screen."""
         from PyQt6.QtWidgets import QGraphicsOpacityEffect
         from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
-        self.show()
         effect = QGraphicsOpacityEffect(self.central_widget)
+        effect.setOpacity(0.0)
         self.central_widget.setGraphicsEffect(effect)
-        self._fade_anim = QPropertyAnimation(effect, b"opacity")
+        self._fade_anim = QPropertyAnimation(effect, b"opacity", self)
         self._fade_anim.setDuration(duration)
         self._fade_anim.setStartValue(0.0)
         self._fade_anim.setEndValue(1.0)
         self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._fade_anim.finished.connect(lambda: self.central_widget.setGraphicsEffect(None))
+        self.show()
         self._fade_anim.start()
 
 
