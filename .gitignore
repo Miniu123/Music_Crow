@@ -5,3 +5,4 @@ __pycache__/
 credentials.json
 google_token.json
 token.json
+core/google_oauth_client.json

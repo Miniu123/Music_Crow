@@ -5,8 +5,9 @@ from PyQt6.QtWidgets import (
 )
 import json
 
-from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QTimer, QEvent
-from PyQt6.QtGui import QPixmap, QDrag
+from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QTimer, QEvent, QVariantAnimation, QEasingCurve, QRectF, QRect
+from PyQt6.QtGui import QPixmap, QDrag, QPainter, QColor, QPen
+from ui.motion import MotionButton, TrashButton
 
 from ui.icons import icon
 from ui.playlist_menu import show_playlist_menu
@@ -25,7 +26,7 @@ class QueueTrackCard(QFrame):
     artist_requested = pyqtSignal(dict)
     play_next_clicked = pyqtSignal(int, str)
     save_to_playlist = pyqtSignal(dict)
-    remove_clicked = pyqtSignal(int)  # index (only for priority queue)
+    remove_clicked = pyqtSignal(int)
 
     def __init__(self, track: dict, index: int, queue_type: str = "base", is_priority: bool = False, parent=None, compact=False):
         super().__init__(parent)
@@ -36,6 +37,16 @@ class QueueTrackCard(QFrame):
         self.drag_start_position = None
         self._gesture_active = False
         self._native_drag_active = False
+        self._hover = 0.0
+        self._feedback = 0.0
+        self._removing = False
+        self._hover_anim = QVariantAnimation(self)
+        self._hover_anim.setDuration(150)
+        self._hover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._hover_anim.valueChanged.connect(self._set_hover)
+        self._feedback_anim = QVariantAnimation(self)
+        self._feedback_anim.setDuration(420)
+        self._feedback_anim.valueChanged.connect(self._set_feedback)
         self.setObjectName("QueueTrackCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(94 if queue_type == "recommended" else 68)
@@ -49,10 +60,6 @@ class QueueTrackCard(QFrame):
                 background-color: rgba(255, 255, 255, 0.02);
                 border-radius: 8px;
                 border: 1px solid rgba(255, 255, 255, 0.03);
-            }}
-            QFrame#QueueTrackCard:hover {{
-                background-color: rgba(255, 255, 255, 0.05);
-                border: 1px solid {platform_color};
             }}
         """)
 
@@ -107,7 +114,7 @@ class QueueTrackCard(QFrame):
         text_layout.addWidget(title)
         text_layout.addLayout(info_row)
         if queue_type == "recommended":
-            self.btn_play_next = text(QPushButton(""), 'Następny →')
+            self.btn_play_next = text(MotionButton(""), 'Następny →')
             self.btn_play_next.setObjectName("QueuePlayNext")
             self.btn_play_next.setCursor(Qt.CursorShape.PointingHandCursor)
             set_text(self.btn_play_next, 'Przenieś do kolejki z playlisty i odtwórz po bieżącym utworze', 'toolTip')
@@ -117,7 +124,7 @@ class QueueTrackCard(QFrame):
             actions = QHBoxLayout()
             actions.setSpacing(6)
             actions.addWidget(self.btn_play_next)
-            self.btn_save_playlist = QPushButton()
+            self.btn_save_playlist = MotionButton()
             self.btn_save_playlist.setObjectName("IconButton")
             self.btn_save_playlist.setIcon(icon("playlist", size=16))
             self.btn_save_playlist.setFixedSize(28, 28)
@@ -141,28 +148,57 @@ class QueueTrackCard(QFrame):
         dur_label.setVisible(not compact)
         layout.addWidget(dur_label)
 
-        # Remove button (only for priority queue)
-        if is_priority:
-            btn_remove = QPushButton("✕")
-            btn_remove.setObjectName("IconButton")
-            btn_remove.setFixedSize(26, 26)
-            btn_remove.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn_remove.setStyleSheet("""
-                QPushButton {
-                    background: rgba(255,255,255,0.04);
-                    color: #969EB6;
-                    border: 1px solid rgba(255,255,255,0.06);
-                    border-radius: 13px;
-                    font-size: 11px;
-                }
-                QPushButton:hover {
-                    background: rgba(255,80,80,0.15);
-                    color: #FF5555;
-                    border: 1px solid rgba(255,80,80,0.3);
-                }
-            """)
-            btn_remove.clicked.connect(lambda: self.remove_clicked.emit(self.index))
-            layout.addWidget(btn_remove)
+        if queue_type != "now_playing":
+            self.btn_remove = TrashButton(self)
+            set_text(self.btn_remove, 'Usuń z kolejki', 'toolTip')
+            set_text(self.btn_remove, 'Usuń z kolejki', 'accessibleName')
+            self.btn_remove.clicked.connect(lambda: self.remove_clicked.emit(self.index))
+            layout.addWidget(self.btn_remove)
+
+    def _set_hover(self, value):
+        self._hover = value
+        self.update()
+
+    def _set_feedback(self, value):
+        self._feedback = value
+        self.update()
+
+    def enterEvent(self, event):
+        MotionButton._animate(self._hover_anim, self._hover, 1.0)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        MotionButton._animate(self._hover_anim, self._hover, 0.0)
+        super().leaveEvent(event)
+
+    def animate_feedback(self):
+        MotionButton._animate(self._feedback_anim, 1.0, 0.0)
+
+    def animate_removal(self, finished):
+        self._removing = True
+        self.setEnabled(False)
+        self._hover_anim.stop()
+        self._feedback_anim.stop()
+        self._removal_anim = QVariantAnimation(self)
+        self._removal_anim.setDuration(220)
+        self._removal_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._removal_anim.setStartValue(self.height())
+        self._removal_anim.setEndValue(0)
+        self._removal_anim.valueChanged.connect(lambda height: self.setFixedHeight(int(height)))
+        self._removal_anim.finished.connect(finished)
+        self._removal_anim.start()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        strength = max(self._hover * 0.5, self._feedback)
+        color = QColor('#F18CA3' if self._removing else '#B39AFF')
+        color.setAlpha(38 if self._removing else int(28 * strength))
+        painter.setBrush(color)
+        color.setAlpha(125 if self._removing else int(140 * strength))
+        painter.setPen(QPen(color, 1))
+        painter.drawRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), 8, 8)
 
     def set_thumbnail(self, pixmap: QPixmap):
         rounded = get_rounded_pixmap(pixmap, self.thumbnail_label.width(), self.thumbnail_label.height(), radius=6)
@@ -356,6 +392,8 @@ class QueuePage(QWidget):
         self.thumbnail_manager = ThumbnailManager()
         self._cards = []
         self._drag_active = False
+        self._removing_card = None
+        self._feedback_cards = []
         self._main_snapshot = None
         self._refresh_pending = False
         self._pri_container = None
@@ -370,7 +408,7 @@ class QueuePage(QWidget):
         title.setObjectName("QueuePageTitle")
         header.addWidget(title)
         header.addStretch()
-        self.btn_shuffle_queue = text(QPushButton(""), 'Wymieszaj playlistę')
+        self.btn_shuffle_queue = text(MotionButton(""), 'Wymieszaj playlistę')
         self.btn_shuffle_queue.setObjectName("RecommendationRefresh")
         self.btn_shuffle_queue.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_shuffle_queue.clicked.connect(self.player.shuffle_queue)
@@ -567,10 +605,9 @@ class QueuePage(QWidget):
         card.drag_started.connect(self._begin_drag_scroll)
         if queue_type != "now_playing":
             card.play_clicked.connect(lambda _, c=card: self._play_card(c))
-        if queue_type == "priority":
+        if queue_type != "now_playing":
             card.remove_clicked.connect(lambda _, c=card: self._remove_card(c))
-        elif queue_type == "recommended":
-            card.remove_clicked.connect(lambda _, c=card: self._remove_card(c))
+        if queue_type == "recommended":
             card.play_next_clicked.connect(lambda _, key, c=card: self._play_next(c, key))
             card.btn_save_playlist.setEnabled(self.playlist_manager is not None)
             card.save_to_playlist.connect(self._save_proposal)
@@ -580,7 +617,7 @@ class QueuePage(QWidget):
         return card
 
     def refresh(self):
-        if self._drag_active:
+        if self._drag_active or self._removing_card is not None:
             self._refresh_pending = True
             return
         self._refresh_timer.stop()
@@ -588,6 +625,7 @@ class QueuePage(QWidget):
             self._saved_scroll_positions = (self.playlist_scroll.verticalScrollBar().value(),
                                             self.recommended_scroll.verticalScrollBar().value())
         self._main_snapshot = self.player.queue_edit_snapshot()
+        old_positions = {(c.queue_type, c.index, id(c.track)) for c in self._cards}
         self.thumbnail_manager.cancel_all()
         self._cards.clear()
         self._clear(self.now_layout, stretch=False)
@@ -636,6 +674,8 @@ class QueuePage(QWidget):
             empty.setWordWrap(True)
             self._append(self.recommended_layout, empty)
 
+        self._feedback_cards = [c for c in self._cards if c.queue_type != 'now_playing'
+                                and (c.queue_type, c.index, id(c.track)) not in old_positions]
         # Qt shows new children and recalculates scroll ranges on the next event-loop turn.
         self._scroll_restore_timer.start(0)
 
@@ -646,9 +686,16 @@ class QueuePage(QWidget):
             area.widget().layout().activate()
             area.verticalScrollBar().setValue(position)
         self._saved_scroll_positions = None
+        if self.isVisible():
+            for card in self._feedback_cards:
+                # Only animate entries visible after restoring the scroll position.
+                area = self.recommended_scroll if card.queue_type == 'recommended' else self.playlist_scroll
+                if area.viewport().rect().intersects(QRect(card.mapTo(area.viewport(), card.rect().topLeft()), card.size())):
+                    card.animate_feedback()
+        self._feedback_cards = []
 
     def _card_is_current(self, card):
-        return (isinstance(card, QueueTrackCard) and card in self._cards
+        return (self._removing_card is None and isinstance(card, QueueTrackCard) and card in self._cards
                 and card.queue_snapshot == self.player.queue_edit_snapshot())
 
     def _drop_container(self, queue_type):
@@ -667,14 +714,22 @@ class QueuePage(QWidget):
         self.player.play_queued_track(card.queue_type, index)
 
     def _remove_card(self, card):
-        if not self._card_is_current(card):
+        if self._drag_active or not self._card_is_current(card):
             return
-        if card.queue_type == 'priority':
-            self._on_remove_priority(card.index)
-        else:
-            index = next((i for i, track in enumerate(self.player._recommended_queue)
-                          if track_key(track) == track_key(card.track)), -1)
-            self.player.remove_recommended(index)
+        # Commit first so EOF/prefetch cannot select the disappearing entry.
+        self._removing_card = card
+        removed = self.player.remove_queue_item(card.queue_type, card.index,
+                                                track_key(card.track), card.queue_snapshot)
+        if not removed:
+            self._removing_card = None
+            self.refresh()
+            return
+        card.animate_removal(self._finish_removal)
+
+    def _finish_removal(self):
+        self._removing_card = None
+        self._refresh_pending = False
+        self.refresh()
 
     def _save_proposal(self, track):
         show_playlist_menu(self, self.playlist_manager, track)
@@ -691,7 +746,3 @@ class QueuePage(QWidget):
                 pass
         self.thumbnail_manager.load(track.get("thumbnail_url", ""), ready)
 
-    def _on_remove_priority(self, index):
-        if 0 <= index < len(self.player._priority_queue):
-            self.player._priority_queue.pop(index)
-            self.player.queue_updated.emit()

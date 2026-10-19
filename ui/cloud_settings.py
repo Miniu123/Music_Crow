@@ -9,7 +9,7 @@ class CloudSettings(QWidget):
         self.manager = manager
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 6, 0, 6)
-        description = text(QLabel(), 'Zapisuj ustawienia, playlisty i okładki na swoim Dysku Google. Każde urządzenie ma osobną kopię.')
+        description = text(QLabel(), 'Ustawienia, playlisty i okładki zapisujemy w jednym prywatnym pliku music-crow-config.json na Dysku zalogowanego użytkownika.')
         description.setWordWrap(True)
         description.setObjectName('SettingsRowDescription')
         layout.addWidget(description)
@@ -24,13 +24,17 @@ class CloudSettings(QWidget):
         self.last_backup = QLabel()
         self.last_backup.setObjectName('SettingsRowDescription')
         layout.addWidget(self.last_backup)
+        self.advanced_button = text(QPushButton(), 'Własna konfiguracja Google (zaawansowane)')
+        self.advanced_button.setCheckable(True)
+        layout.addWidget(self.advanced_button)
         self.configure_button = text(QPushButton(), 'Wybierz konfigurację Google…')
         self.configure_button.clicked.connect(self._configure)
+        self.advanced_button.toggled.connect(self.configure_button.setVisible)
         layout.addWidget(self.configure_button)
-        hint = text(QLabel(), 'Pierwsze uruchomienie wymaga pliku OAuth aplikacji komputerowej. Instrukcja: README → Dysk Google.')
-        hint.setWordWrap(True)
-        hint.setObjectName('SettingsRowDescription')
-        layout.addWidget(hint)
+        self.hint = QLabel()
+        self.hint.setWordWrap(True)
+        self.hint.setObjectName('SettingsRowDescription')
+        layout.addWidget(self.hint)
         self.automatic = text(QCheckBox(), 'Automatycznie zapisuj kopię')
         self.history = text(QCheckBox(), 'Uwzględniaj historię słuchania')
         layout.addWidget(self.automatic)
@@ -78,11 +82,18 @@ class CloudSettings(QWidget):
             self.last_backup.setText(tr('Ostatnia kopia:') + ' ' + stamp)
         self.last_backup.setVisible(bool(stamp))
         self.configure_button.setEnabled(not busy and not connected)
+        configured = manager.has_client_configuration()
+        advanced = (not manager.has_bundled_credentials() or manager.has_credentials_file()) and not connected
+        self.advanced_button.setVisible(advanced)
+        self.advanced_button.setEnabled(not busy)
+        self.configure_button.setVisible(advanced and self.advanced_button.isChecked())
+        set_text(self.hint, 'Logowanie otworzy się w domyślnej przeglądarce systemowej.' if configured or connected
+                 else 'Autor aplikacji musi najpierw skonfigurować logowanie Google.')
         self.login_button.setVisible(not connected)
-        self.login_button.setEnabled(not busy and manager.is_available())
+        self.login_button.setEnabled(not busy and manager.is_available() and configured)
         self.logout_button.setVisible(connected)
         self.cancel_button.setVisible(busy)
-        self.backup_button.setEnabled(connected and not busy)
+        self.backup_button.setEnabled(connected and not busy and not manager.needs_restore)
         self.restore_button.setEnabled(connected and not busy)
         for checkbox, key in ((self.automatic, 'automatic'), (self.history, 'include_history')):
             checkbox.blockSignals(True)
@@ -99,7 +110,10 @@ class CloudSettings(QWidget):
     def _choose_backup(self, backups):
         if not backups or not self.isVisible():
             return
-        labels = [f"{entry.get('modifiedTime', '')[:19].replace('T', ' ')} UTC · {entry['name'][11:-5]}" for entry in backups]
+        if len(backups) == 1:
+            self.manager.download_backup(backups[0]['id'])
+            return
+        labels = [f"{entry.get('modifiedTime', '')[:19].replace('T', ' ')} UTC · {entry['name']}" for entry in backups]
         chosen, ok = QInputDialog.getItem(self, tr('Przywróć kopię…'), tr('Wybierz kopię do przywrócenia.'), labels, 0, False)
         if ok:
             self.manager.download_backup(backups[labels.index(chosen)]['id'])

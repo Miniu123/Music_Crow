@@ -1,3 +1,4 @@
+from ui.motion import MotionButton
 from core.i18n import tr, text, set_text
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QSpacerItem, QSizePolicy,
@@ -55,7 +56,7 @@ class ImportPlaylistDialog(QDialog):
         header_row.addWidget(title)
         header_row.addStretch()
 
-        btn_close = QPushButton("✕")
+        btn_close = MotionButton("✕")
         btn_close.setObjectName("DialogClose")
         btn_close.setFixedSize(28, 28)
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -101,7 +102,7 @@ class ImportPlaylistDialog(QDialog):
         layout.addWidget(self.status_label)
 
         # Import button
-        self.btn_import = text(QPushButton(""), 'Importuj playlistę')
+        self.btn_import = text(MotionButton(""), 'Importuj playlistę')
         self.btn_import.setObjectName("PrimaryButton")
         self.btn_import.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_import.setFixedHeight(42)
@@ -220,7 +221,7 @@ class Sidebar(QWidget):
         self.main_layout.addWidget(nav_label)
         self.main_layout.addSpacing(4)
 
-        self.btn_home = text(QPushButton(""), '  Strona główna')
+        self.btn_home = text(MotionButton(""), '  Strona główna')
         self.btn_home.setIcon(icon("home"))
         self.btn_home.setObjectName("NavButton")
         self.btn_home.setCheckable(True)
@@ -228,7 +229,7 @@ class Sidebar(QWidget):
         self.btn_home.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_home.clicked.connect(lambda: self._navigate("home"))
 
-        self.btn_search = text(QPushButton(""), '  Szukaj')
+        self.btn_search = text(MotionButton(""), '  Szukaj')
         self.btn_search.setIcon(icon("search"))
         self.btn_search.setObjectName("NavButton")
         self.btn_search.setCheckable(True)
@@ -260,7 +261,7 @@ class Sidebar(QWidget):
         pl_header_layout.addStretch()
 
         # Import playlist button
-        self.btn_import_playlist = QPushButton("")
+        self.btn_import_playlist = MotionButton("")
         self.btn_import_playlist.setObjectName("IconButton")
         self.btn_import_playlist.setIcon(icon("download", size=16))
         self.btn_import_playlist.setFixedSize(24, 24)
@@ -271,7 +272,7 @@ class Sidebar(QWidget):
         pl_header_layout.addWidget(self.btn_import_playlist)
 
         # Create playlist button
-        self.btn_create_playlist = QPushButton("")
+        self.btn_create_playlist = MotionButton("")
         self.btn_create_playlist.setObjectName("IconButton")
         self.btn_create_playlist.setIcon(icon("plus", size=16))
         self.btn_create_playlist.setFixedSize(24, 24)
@@ -307,7 +308,7 @@ class Sidebar(QWidget):
         self.main_layout.addWidget(divider2)
         self.main_layout.addSpacing(4)
 
-        self.btn_settings = text(QPushButton(""), '  Ustawienia')
+        self.btn_settings = text(MotionButton(""), '  Ustawienia')
         self.btn_settings.setIcon(icon("settings"))
         self.btn_settings.setObjectName("NavButton")
         self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -371,7 +372,7 @@ class Sidebar(QWidget):
             return
 
         for pl_name in self.playlist_manager.list_playlists():
-            btn = QPushButton(f"  {pl_name}")
+            btn = MotionButton(f"  {pl_name}")
             btn.setIcon(icon("playlist"))
             btn.setToolTip(pl_name)
             btn.setObjectName("PlaylistButton")

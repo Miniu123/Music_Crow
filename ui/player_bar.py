@@ -1,6 +1,7 @@
+from ui.motion import MotionButton
 from ui.artist_button import ArtistButton
 from core.i18n import text, set_text, language_manager
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QMenu, QSlider
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QMenu, QSlider
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QPixmap, QCursor
 
@@ -83,7 +84,7 @@ class PlayerBar(QWidget):
         self.clickable_layout.addLayout(self.track_text_layout)
 
         # Save to playlist button (♡ heart)
-        self.btn_save = QPushButton("♡")
+        self.btn_save = MotionButton("♡")
         self.btn_save.setObjectName("SaveButton")
         self.btn_save.setFixedSize(36, 36)
         self.btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -104,27 +105,27 @@ class PlayerBar(QWidget):
         self.controls_layout = QHBoxLayout()
         self.controls_layout.setSpacing(12)
 
-        self.btn_shuffle = QPushButton("🔀")
+        self.btn_shuffle = MotionButton("🔀")
         self.btn_shuffle.setObjectName("ControlButton")
         self.btn_shuffle.setFixedSize(36, 36)
         self.btn_shuffle.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        self.btn_prev = QPushButton("⏮")
+        self.btn_prev = MotionButton("⏮")
         self.btn_prev.setObjectName("ControlButton")
         self.btn_prev.setFixedSize(40, 40)
         self.btn_prev.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        self.btn_play = QPushButton("▶")
+        self.btn_play = MotionButton("▶")
         self.btn_play.setObjectName("PlayPauseButton")
         self.btn_play.setFixedSize(46, 46)
         self.btn_play.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        self.btn_next = QPushButton("⏭")
+        self.btn_next = MotionButton("⏭")
         self.btn_next.setObjectName("ControlButton")
         self.btn_next.setFixedSize(40, 40)
         self.btn_next.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        self.btn_repeat = QPushButton("🔁")
+        self.btn_repeat = MotionButton("🔁")
         self.btn_repeat.setObjectName("ControlButton")
         self.btn_repeat.setFixedSize(36, 36)
         self.btn_repeat.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -162,7 +163,7 @@ class PlayerBar(QWidget):
         # ═══════════════════════════════════════
         self.right_layout = QHBoxLayout()
         self.right_layout.setSpacing(8)
-        self.btn_volume = QPushButton("🔊")
+        self.btn_volume = MotionButton("🔊")
         self.btn_volume.setObjectName("ControlButton")
         self.btn_volume.setFixedSize(36, 36)
         self.btn_volume.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -175,7 +176,7 @@ class PlayerBar(QWidget):
         self.right_layout.addWidget(self.btn_volume)
         self.right_layout.addWidget(self.slider_volume)
 
-        self.btn_queue = QPushButton()
+        self.btn_queue = MotionButton()
         self.btn_queue.setIcon(icon("queue"))
         self.btn_queue.setObjectName("ControlButton")
         self.btn_queue.setFixedSize(32, 32)

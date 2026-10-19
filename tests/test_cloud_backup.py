@@ -137,6 +137,8 @@ class ManualWorker(QObject):
     def requestInterruption(self): self.cancelled = True
     def wait(self): pass
     def finish(self, **values):
+        if self.operation == 'upload':
+            values.setdefault('remote', {'id': 'account-config', 'checksum': 'uploaded-checksum'})
         self.completed.emit(dict(operation=self.operation, token=TOKEN, **values))
         self.finished.emit()
 
@@ -177,6 +179,58 @@ class ManagerTests(unittest.TestCase):
         self.assertFalse(self.manager.busy)
         self.assertEqual(self.manager.email, 'example@example.com')
         self.assertEqual(json.loads(self.manager.token_path.read_text()), TOKEN)
+
+    def test_bundled_desktop_client_logs_in_without_a_user_config_file(self):
+        from ui.cloud_settings import CloudSettings
+        with patch.object(drive, 'bundled_client', return_value=CLIENT):
+            controls = CloudSettings(self.manager)
+            self.addCleanup(controls.close)
+            self.assertTrue(self.manager.has_client_configuration())
+            self.assertTrue(controls.login_button.isEnabled())
+            self.assertTrue(controls.configure_button.isHidden())
+            self.assertTrue(controls.advanced_button.isHidden())
+            controls.login_button.click()
+            self.assertEqual(self.manager._worker.kwargs['client'], CLIENT)
+            self.assertFalse(self.manager.client_path.exists())
+            urls = []
+            self.manager.open_browser.connect(urls.append)
+            self.manager._worker.open_browser.emit('https://accounts.google.com/o/oauth2/auth')
+            self.assertEqual(urls, ['https://accounts.google.com/o/oauth2/auth'])
+
+    def test_missing_release_configuration_does_not_start_authentication(self):
+        from ui.cloud_settings import CloudSettings
+        with patch.object(drive, 'bundled_client', return_value=None):
+            self.manager.login()
+            self.assertFalse(self.manager.busy)
+            self.assertEqual(self.manager.status, 'Autor aplikacji musi najpierw skonfigurować logowanie Google.')
+            controls = CloudSettings(self.manager)
+            self.addCleanup(controls.close)
+            self.assertFalse(controls.login_button.isEnabled())
+            self.assertTrue(controls.configure_button.isHidden())
+
+    def test_local_client_keeps_precedence_and_can_be_repaired(self):
+        from ui.cloud_settings import CloudSettings
+        other = copy.deepcopy(CLIENT)
+        other['installed']['client_id'] = 'publisher.apps.googleusercontent.com'
+        atomic_write(self.manager.client_path, encode(CLIENT))
+        with patch.object(drive, 'bundled_client', return_value=other):
+            self.assertEqual(self.manager._client_configuration(), CLIENT)
+            self.manager.client_path.write_text('invalid JSON')
+            self.assertFalse(self.manager.has_client_configuration())
+            controls = CloudSettings(self.manager)
+            self.addCleanup(controls.close)
+            self.assertFalse(controls.advanced_button.isHidden())
+            controls.advanced_button.click()
+            self.assertFalse(controls.configure_button.isHidden())
+
+    def test_bundled_client_must_pass_same_endpoint_validation(self):
+        bad = copy.deepcopy(CLIENT)
+        bad['installed']['token_uri'] = 'https://untrusted.example/token'
+        with patch.object(drive, 'bundled_client', return_value=bad):
+            self.manager.login()
+            self.assertFalse(self.manager.has_bundled_credentials())
+            self.assertFalse(self.manager.busy)
+            self.assertEqual(self.manager.status, 'Konfiguracja logowania Google jest nieprawidłowa.')
 
     def test_logout_ignores_late_authentication_and_keeps_backups(self):
         atomic_write(self.manager.client_path, encode(CLIENT))
@@ -220,6 +274,63 @@ class ManagerTests(unittest.TestCase):
         self.manager.set_option('automatic', False)
         self.assertFalse(self.manager._debounce.isActive())
 
+    def test_uploaded_file_checkpoint_is_reused_after_restart(self):
+        self.connect()
+        self.manager.sync_now()
+        self.manager._worker.finish(remote={'id': 'one-file', 'checksum': 'first-content'})
+        state = json.loads(self.manager.state_path.read_text())
+        self.assertEqual(state['remote_file_id'], 'one-file')
+        self.assertEqual(state['remote_checksum'], 'first-content')
+        self.manager.shutdown()
+        resumed = drive.GDriveSyncManager(root=self.root)
+        self.addCleanup(resumed.shutdown)
+        self.assertEqual(resumed.settings['remote_file_id'], 'one-file')
+        resumed.connected = True
+        resumed.sync_now()
+        self.assertEqual(resumed._worker.kwargs['expected_file_id'], 'one-file')
+        self.assertEqual(resumed._worker.kwargs['expected_checksum'], 'first-content')
+        self.assertNotIn('device_id', resumed._worker.kwargs)
+
+    def test_account_switch_resets_remote_checkpoint(self):
+        self.connect()
+        self.manager.settings.update(remote_file_id='account-A-file', remote_checksum='A-content')
+        self.manager._start('connect')
+        self.manager._worker.finish(email='other@example.com')
+        self.manager._debounce.stop()
+        self.assertEqual(self.manager.settings['account_email'], 'other@example.com')
+        self.assertEqual(self.manager.settings['remote_file_id'], '')
+        self.assertEqual(self.manager.settings['remote_checksum'], '')
+
+    def test_conflict_blocks_automatic_and_manual_writes_until_restore(self):
+        self.connect()
+        self.manager._fail(drive.REMOTE_CONFLICT)
+        self.manager.schedule_sync()
+        self.assertFalse(self.manager._debounce.isActive())
+        self.manager.sync_now(force=True)
+        self.assertFalse(self.manager.busy)
+        self.manager.restore_ready.connect(self.manager.apply_restore)
+        self.manager.download_backup('cloud-config')
+        snapshot = collect_snapshot(self.root)
+        snapshot['settings']['LANGUAGE'] = 'en'
+        self.manager._worker.finish(snapshot=snapshot, remote={'id': 'cloud-config', 'checksum': 'restored-content'})
+        self.assertFalse(self.manager.needs_restore)
+        self.assertEqual(self.manager.settings['remote_file_id'], 'cloud-config')
+        self.assertEqual(self.manager.settings['remote_checksum'], 'restored-content')
+        self.assertEqual(json.loads((self.root / 'theme.json').read_text())['LANGUAGE'], 'en')
+        self.manager._debounce.stop()
+        self.manager.sync_now()
+        self.assertEqual(self.manager._worker.kwargs['expected_checksum'], 'restored-content')
+
+    def test_cancelled_restore_never_acknowledges_remote_file(self):
+        self.connect()
+        self.manager.download_backup('cloud-config')
+        self.manager._worker.finish(snapshot=collect_snapshot(self.root),
+                                    remote={'id': 'cloud-config', 'checksum': 'not-applied'})
+        self.assertTrue(self.manager.needs_restore)
+        self.assertEqual(self.manager.settings['remote_file_id'], '')
+        self.manager.sync_now()
+        self.assertFalse(self.manager.busy)
+
     def test_settings_show_drive_and_live_translation(self):
         theme = ThemeManager()
         theme.config_dir = self.root
@@ -237,14 +348,53 @@ class ManagerTests(unittest.TestCase):
 
 @unittest.skipUnless(drive.HAS_GOOGLE_API, 'Google libraries required')
 class GoogleProtocolTests(unittest.TestCase):
-    def test_drive_upload_updates_only_this_devices_file(self):
+    def test_unknown_or_changed_cloud_copy_is_not_overwritten(self):
+        for file_id, checksum in (('', ''), ('config', 'old'), ('another-account-file', 'current')):
+            with self.subTest(file_id=file_id, checksum=checksum), patch.object(drive, 'AuthorizedSession'):
+                client = drive.DriveClient(MagicMock(), MagicMock())
+                client.list_backups = MagicMock(return_value=[{'id': 'config', 'name': drive.CONFIG_NAME, 'md5Checksum': 'current'}])
+                client.request = MagicMock()
+                with self.assertRaisesRegex(ValueError, drive.REMOTE_CONFLICT):
+                    client.upload(b'{}', file_id, checksum)
+                client.request.assert_not_called()
+
+    def test_accounts_use_their_own_credentials_and_file_ids(self):
+        credentials = [MagicMock(), MagicMock()]
+        sessions = [MagicMock(), MagicMock()]
+        with patch.object(drive, 'AuthorizedSession', side_effect=sessions) as factory:
+            clients = [drive.DriveClient(credential, MagicMock()) for credential in credentials]
+        self.assertEqual([call.args[0] for call in factory.call_args_list], credentials)
+        for index, client in enumerate(clients):
+            file_id = f'account-{index}-config'
+            response = sessions[index].request.return_value
+            response.headers = {'Location': drive.UPLOAD_API + '?upload_id=test'}
+            response.json.return_value = {'id': file_id}
+            client.list_backups = MagicMock(return_value=[{'id': file_id, 'name': drive.CONFIG_NAME, 'md5Checksum': 'known'}])
+            client.upload(b'{}', file_id, 'known')
+            self.assertEqual(sessions[index].request.call_args_list[0].args[:2], ('PATCH', drive.UPLOAD_API + '/' + file_id))
+
+    def test_download_checkpoint_describes_received_bytes(self):
+        import hashlib
+        payload = encode({'format': 'music-crow-backup', 'version': 1, 'settings': {}, 'playlists': {}, 'history': {}})
+        with patch.object(drive, 'AuthorizedSession'):
+            client = drive.DriveClient(MagicMock(), MagicMock())
+        client.list_backups = MagicMock(return_value=[{'id': 'config', 'name': drive.CONFIG_NAME, 'size': str(len(payload)), 'md5Checksum': 'before-download'}])
+        client.request = MagicMock()
+        client.request.return_value.iter_content.return_value = [payload]
+        result = client.download('config')
+        self.assertEqual(result['remote'], {'id': 'config', 'checksum': hashlib.md5(payload, usedforsecurity=False).hexdigest()})
+        self.assertEqual(result['snapshot']['format'], 'music-crow-backup')
+        client.request.return_value.close.assert_called_once()
+
+    def test_drive_upload_updates_account_config_and_preserves_legacy_files(self):
         with patch.object(drive, 'AuthorizedSession'):
             client = drive.DriveClient(MagicMock(), MagicMock())
         client.list_backups = MagicMock(return_value=[{'id': 'other', 'name': 'music-crow-other.json'},
-                                                       {'id': 'mine', 'name': 'music-crow-device.json'}])
+                                                       {'id': 'mine', 'name': drive.CONFIG_NAME, 'md5Checksum': 'known'}])
         client.request = MagicMock()
         client.request.return_value.headers = {'Location': drive.UPLOAD_API + '?upload_id=test'}
-        client.upload('device', b'{}')
+        client.request.return_value.json.return_value = {'id': 'mine'}
+        client.upload(b'{}', 'mine', 'known')
         call = client.request.call_args_list[0]
         self.assertEqual(call.args[:2], ('PATCH', drive.UPLOAD_API + '/mine'))
         self.assertEqual(client.request.call_args.kwargs['data'], b'{}')
@@ -255,9 +405,11 @@ class GoogleProtocolTests(unittest.TestCase):
         client.list_backups = MagicMock(return_value=[])
         client.request = MagicMock()
         client.request.return_value.headers = {'Location': drive.UPLOAD_API + '?upload_id=test'}
-        client.upload('device', b'{}')
+        client.request.return_value.json.return_value = {'id': 'new'}
+        client.upload(b'{}')
         metadata = client.request.call_args_list[0].kwargs['json']
         self.assertEqual(metadata['parents'], ['appDataFolder'])
+        self.assertEqual(metadata['name'], drive.CONFIG_NAME)
         self.assertEqual(drive.SCOPES, ['https://www.googleapis.com/auth/drive.appdata'])
 
     def test_remote_listing_paginates(self):

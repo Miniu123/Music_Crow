@@ -1,10 +1,11 @@
+from ui.motion import MotionButton
 from ui.artist_page import ArtistPage
 from core.i18n import text, set_text
 import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QScrollArea, QGridLayout,
     QHBoxLayout, QLineEdit, QStackedWidget, QDialog, QGraphicsOpacityEffect,
-    QFrame, QPushButton
+    QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QPixmap
@@ -81,7 +82,7 @@ class HomePage(QWidget):
         hero_description.setWordWrap(True)
         hero_description.setObjectName("HeroDescription")
         hero_layout.addWidget(hero_description)
-        explore = text(QPushButton(""), 'Odkrywaj muzykę →')
+        explore = text(MotionButton(""), 'Odkrywaj muzykę →')
         explore.setObjectName("HeroButton")
         explore.setCursor(Qt.CursorShape.PointingHandCursor)
         explore.clicked.connect(lambda: self.search_input.setFocus())
@@ -121,7 +122,7 @@ class HomePage(QWidget):
         recommendations_title.setObjectName("LibraryTitle")
         recommendations_header.addWidget(recommendations_title)
         recommendations_header.addStretch()
-        self.refresh_recommendations = text(QPushButton(""), 'Odśwież ↻')
+        self.refresh_recommendations = text(MotionButton(""), 'Odśwież ↻')
         self.refresh_recommendations.setObjectName("RecommendationRefresh")
         self.refresh_recommendations.setCursor(Qt.CursorShape.PointingHandCursor)
         recommendations_header.addWidget(self.refresh_recommendations)
@@ -343,7 +344,10 @@ class MainContent(QWidget):
         """Smoothly fades in the target page when switching tabs."""
         if hasattr(self, "_current_page_anim") and self._current_page_anim:
             self._current_page_anim.stop()
+            self._current_page_anim.deleteLater()
             self._current_page_anim = None
+            self._fading_page.setGraphicsEffect(None)
+            self._fading_page = None
 
         if self.stack.currentIndex() == index:
             if on_switched:
@@ -351,25 +355,29 @@ class MainContent(QWidget):
             return
 
         target_widget = self.stack.widget(index)
+        effect = QGraphicsOpacityEffect(target_widget)
+        effect.setOpacity(0.15)
+        target_widget.setGraphicsEffect(effect)
+        self._fading_page = target_widget
         self.stack.setCurrentIndex(index)
         if on_switched:
             on_switched()
-
-        effect = QGraphicsOpacityEffect(target_widget)
-        target_widget.setGraphicsEffect(effect)
         anim = QPropertyAnimation(effect, b"opacity", self)
-        anim.setDuration(180)
+        anim.setDuration(220)
         anim.setStartValue(0.15)
         anim.setEndValue(1.0)
-        anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         def _cleanup():
-            if self.stack.currentIndex() == index:
+            if self._current_page_anim is anim:
                 target_widget.setGraphicsEffect(None)
+                self._current_page_anim = None
+                self._fading_page = None
+            anim.deleteLater()
 
         anim.finished.connect(_cleanup)
-        anim.start()
         self._current_page_anim = anim
+        anim.start()
 
     def show_home(self):
         self._fade_to_page(0)

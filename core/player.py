@@ -316,6 +316,33 @@ class MusicPlayer(QObject):
         self.queue_updated.emit()
         return True
 
+    def remove_queue_item(self, source, index, expected_key=None, snapshot=None):
+        """Remove an upcoming entry from this session without editing its saved playlist."""
+        if snapshot is not None and snapshot != self.queue_edit_snapshot():
+            return False
+        if source not in ('priority', 'base', 'recommended'):
+            return False
+        origin = {'priority': self._priority_queue, 'base': self.upcoming_base_tracks(),
+                  'recommended': self._recommended_queue}[source]
+        if source == 'recommended' and expected_key is not None:
+            index = next((i for i, track in enumerate(origin) if track_key(track) == expected_key), -1)
+        if not 0 <= index < len(origin):
+            return False
+        if expected_key is not None and track_key(origin[index]) != expected_key:
+            return False
+        track = origin[index]
+        if source == 'base':
+            absolute = self._shuffled_indices[index] if self._shuffle else self._current_base_index + 1 + index
+            self._base_queue.pop(absolute)
+            self._shuffled_indices = [i - (i > absolute) for i in self._shuffled_indices if i != absolute]
+            if absolute <= self._current_base_index:
+                self._current_base_index -= 1
+        else:
+            origin.pop(index)
+        self._recommendation_seen.add(track_key(track))
+        self.queue_updated.emit()
+        return True
+
     def move_upcoming_base_track(self, from_relative_idx: int, to_relative_idx: int):
         if self._shuffle:
             if 0 <= from_relative_idx < len(self._shuffled_indices) and 0 <= to_relative_idx < len(self._shuffled_indices):

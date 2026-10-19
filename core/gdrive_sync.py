@@ -1,15 +1,15 @@
-"""Google OAuth desktop login and per-device Google Drive app-data backups."""
+"""Google OAuth desktop login and one private configuration file per account."""
 import hashlib
 import json
 import secrets
 import time
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from wsgiref.simple_server import make_server, WSGIRequestHandler
 from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
 from core.cloud_backup import atomic_write, collect_snapshot, encode, validate_snapshot, MAX_BACKUP_BYTES
+from core.google_oauth_config import bundled_client
 
 try:
     from google.oauth2.credentials import Credentials
@@ -22,6 +22,8 @@ except ImportError:
 SCOPES = ['https://www.googleapis.com/auth/drive.appdata']
 API = 'https://www.googleapis.com/drive/v3'
 UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3/files'
+CONFIG_NAME = 'music-crow-config.json'
+REMOTE_CONFLICT = 'Na Dysku jest nieznana lub nowsza kopia. Przywróć ją przed kolejnym zapisem.'
 
 
 def validate_client(data):
@@ -95,7 +97,7 @@ class DriveClient:
         entries, token = [], None
         for _ in range(20):
             params = {'spaces': 'appDataFolder', 'q': 'trashed=false', 'pageSize': 100,
-                      'fields': 'nextPageToken,files(id,name,modifiedTime,size)', 'orderBy': 'modifiedTime desc'}
+                      'fields': 'nextPageToken,files(id,name,modifiedTime,size,md5Checksum)', 'orderBy': 'modifiedTime desc'}
             if token:
                 params['pageToken'] = token
             data = self.request('GET', API + '/files', params=params).json()
@@ -106,23 +108,29 @@ class DriveClient:
                 return entries
         raise ValueError('Zbyt wiele kopii na Dysku Google.')
 
-    def upload(self, device_id, payload):
-        name = f'music-crow-{device_id}.json'
-        matches = [item for item in self.list_backups() if item['name'] == name]
+    def upload(self, payload, expected_file_id='', expected_checksum=''):
+        matches = [item for item in self.list_backups() if item['name'] == CONFIG_NAME]
+        # A new installation must restore the account's existing data first.
+        # Recheck on every write, including manual saves and other-device edits.
+        if matches and (len(matches) != 1 or matches[0]['id'] != expected_file_id
+                        or not expected_checksum or matches[0].get('md5Checksum') != expected_checksum):
+            raise ValueError(REMOTE_CONFLICT)
         headers = {'X-Upload-Content-Type': 'application/json', 'X-Upload-Content-Length': str(len(payload))}
+        params = {'uploadType': 'resumable', 'fields': 'id,name,md5Checksum'}
         if matches:
             response = self.request('PATCH', UPLOAD_API + '/' + matches[0]['id'],
-                                    params={'uploadType': 'resumable'}, json={}, headers=headers)
+                                    params=params, json={}, headers=headers)
         else:
-            metadata = {'name': name, 'parents': ['appDataFolder'], 'mimeType': 'application/json'}
-            response = self.request('POST', UPLOAD_API, params={'uploadType': 'resumable', 'fields': 'id'},
+            metadata = {'name': CONFIG_NAME, 'parents': ['appDataFolder'], 'mimeType': 'application/json'}
+            response = self.request('POST', UPLOAD_API, params=params,
                                     json=metadata, headers=headers)
         target = response.headers.get('Location', '')
         parsed = urlparse(target)
         if parsed.scheme != 'https' or parsed.hostname != 'www.googleapis.com' or parsed.username:
             raise ValueError('Invalid Google upload session')
         # A resumable session also supports backups larger than the 5 MB multipart recommendation.
-        return self.request('PUT', target, data=payload, headers={'Content-Type': 'application/json'}).json()
+        uploaded = self.request('PUT', target, data=payload, headers={'Content-Type': 'application/json'}).json()
+        return {'id': uploaded['id'], 'checksum': hashlib.md5(payload, usedforsecurity=False).hexdigest()}
 
     def download(self, file_id):
         # Only accept IDs returned from this application's private folder.
@@ -139,7 +147,9 @@ class DriveClient:
                     raise ValueError('Kopia przekracza limit 40 MB.')
         finally:
             response.close()
-        return validate_snapshot(json.loads(payload))
+        return {'snapshot': validate_snapshot(json.loads(payload)),
+                'remote': {'id': file_id, 'checksum': hashlib.md5(payload, usedforsecurity=False).hexdigest()}
+                if selected['name'] == CONFIG_NAME else None}
 
 
 class DriveWorker(QThread):
@@ -147,10 +157,12 @@ class DriveWorker(QThread):
     failed = pyqtSignal(str)
     open_browser = pyqtSignal(str)
 
-    def __init__(self, operation, token=None, client=None, payload=None, device_id='', file_id='', parent=None):
+    def __init__(self, operation, token=None, client=None, payload=None, file_id='',
+                 expected_file_id='', expected_checksum='', parent=None):
         super().__init__(parent)
         self.operation, self.token, self.client = operation, token, client
-        self.payload, self.device_id, self.file_id = payload, device_id, file_id
+        self.payload, self.file_id = payload, file_id
+        self.expected_file_id, self.expected_checksum = expected_file_id, expected_checksum
 
     def check_cancelled(self):
         if self.isInterruptionRequested():
@@ -166,11 +178,11 @@ class DriveWorker(QThread):
             if self.operation in ('login', 'connect'):
                 result['email'] = drive.account()
             elif self.operation == 'upload':
-                drive.upload(self.device_id, self.payload)
+                result['remote'] = drive.upload(self.payload, self.expected_file_id, self.expected_checksum)
             elif self.operation == 'list':
                 result['backups'] = drive.list_backups()
             elif self.operation == 'download':
-                result['snapshot'] = drive.download(self.file_id)
+                result.update(drive.download(self.file_id))
             self.check_cancelled()
             result['token'] = json.loads(creds.to_json())
             self.completed.emit(result)
@@ -180,7 +192,7 @@ class DriveWorker(QThread):
             # Avoid displaying token-bearing URLs or OAuth responses in the UI/logs.
             if isinstance(error, ValueError) and str(error) in (
                 'Logowanie anulowane lub przekroczono czas oczekiwania.',
-                'Nieprawidłowa kopia danych.', 'Kopia przekracza limit 40 MB.', 'Zbyt wiele kopii na Dysku Google.'):
+                'Nieprawidłowa kopia danych.', 'Kopia przekracza limit 40 MB.', 'Zbyt wiele kopii na Dysku Google.', REMOTE_CONFLICT):
                 message = str(error)
             elif getattr(getattr(error, 'response', None), 'status_code', None) == 403:
                 message = 'Brak dostępu do Dysku. Sprawdź, czy Drive API jest włączone w projekcie Google.'
@@ -215,9 +227,12 @@ class GDriveSyncManager(QObject):
         self._closing = False
         self.connected = False
         self.email = ''
+        self.needs_restore = False
+        self._restore_checkpoint = None
+        self._restore_snapshot = None
         self.status = 'Dysk Google nie jest połączony.'
-        self.settings = {'device_id': uuid.uuid4().hex, 'automatic': True, 'include_history': False,
-                         'last_sync': '', 'digest': ''}
+        self.settings = {'automatic': True, 'include_history': False, 'last_sync': '', 'digest': '',
+                         'account_email': '', 'remote_file_id': '', 'remote_checksum': ''}
         try:
             state = json.loads(self.state_path.read_text())
             if isinstance(state, dict):
@@ -244,6 +259,26 @@ class GDriveSyncManager(QObject):
 
     def has_credentials_file(self):
         return self.client_path.is_file()
+
+    def has_bundled_credentials(self):
+        try:
+            client = bundled_client()
+            return client is not None and bool(validate_client(client))
+        except (ValueError, TypeError):
+            return False
+
+    def _client_configuration(self):
+        # Preserve explicitly imported clients and their existing Drive app-data.
+        if self.has_credentials_file():
+            return validate_client(json.loads(self.client_path.read_text()))
+        client = bundled_client()
+        return validate_client(client) if client is not None else None
+
+    def has_client_configuration(self):
+        try:
+            return self._client_configuration() is not None
+        except (OSError, ValueError, TypeError):
+            return False
 
     def is_logged_in(self):
         return self.connected
@@ -279,15 +314,15 @@ class GDriveSyncManager(QObject):
             return
         if not HAS_GOOGLE_API:
             self.status = 'Brakuje bibliotek Google. Zainstaluj zależności projektu.'
-        elif not self.has_credentials_file():
-            self.status = 'Najpierw wybierz plik konfiguracji Google.'
         else:
             try:
-                client = validate_client(json.loads(self.client_path.read_text()))
-                self._start('login', client=client)
-                return
-            except (OSError, ValueError):
-                self.status = 'Wybierz plik OAuth typu Aplikacja komputerowa z Google Cloud.'
+                client = self._client_configuration()
+                if client is not None:
+                    self._start('login', client=client)
+                    return
+                self.status = 'Autor aplikacji musi najpierw skonfigurować logowanie Google.'
+            except (OSError, ValueError, TypeError):
+                self.status = 'Konfiguracja logowania Google jest nieprawidłowa.'
         self.state_changed.emit()
 
     def logout(self):
@@ -301,7 +336,9 @@ class GDriveSyncManager(QObject):
         self._token = None
         self.connected = False
         self.email = ''
-        self.settings.update(digest='', last_sync='')
+        self.needs_restore = False
+        self._restore_checkpoint = self._restore_snapshot = None
+        self.settings.update(digest='', last_sync='', account_email='', remote_file_id='', remote_checksum='')
         try:
             self.token_path.unlink(missing_ok=True)
             self._save_state()
@@ -313,6 +350,7 @@ class GDriveSyncManager(QObject):
 
     def cancel(self):
         self._delivery = None
+        self._restore_checkpoint = self._restore_snapshot = None
         self._generation += 1
         self._pending = False
         if self._worker:
@@ -336,11 +374,15 @@ class GDriveSyncManager(QObject):
         self.state_changed.emit()
 
     def schedule_sync(self, *args):
-        if self.connected and self.settings['automatic'] and not self._closing:
+        if self.connected and self.settings['automatic'] and not self._closing and not self.needs_restore:
             self._debounce.start()
 
     def sync_now(self, force=True):
         if not self.connected or self._closing:
+            return
+        if self.needs_restore:
+            self.status = REMOTE_CONFLICT
+            self.state_changed.emit()
             return
         if self.busy:
             self._pending = True
@@ -353,7 +395,8 @@ class GDriveSyncManager(QObject):
                 return
             self._save_state()
             self._upload_digest = digest
-            self._start('upload', payload=encode(snapshot), device_id=self.settings['device_id'])
+            self._start('upload', payload=encode(snapshot), expected_file_id=self.settings['remote_file_id'],
+                        expected_checksum=self.settings['remote_checksum'])
         except (OSError, ValueError, TypeError):
             self.status = 'Nie udało się przygotować kopii. Sprawdź lokalne pliki i rozmiar okładek.'
             self.state_changed.emit()
@@ -364,6 +407,10 @@ class GDriveSyncManager(QObject):
 
     def download_backup(self, file_id):
         if self.connected and not self.busy:
+            # Keep automatic writes suspended until the restoration is accepted.
+            self._debounce.stop()
+            self._pending = False
+            self.needs_restore = True
             self._start('download', file_id=file_id)
 
     def _start(self, operation, **kwargs):
@@ -383,6 +430,10 @@ class GDriveSyncManager(QObject):
 
     def _fail(self, message):
         self.status = message
+        if message == REMOTE_CONFLICT:
+            self.needs_restore = True
+            self._pending = False
+            self._debounce.stop()
         self.state_changed.emit()
 
     def _complete(self, result):
@@ -391,9 +442,13 @@ class GDriveSyncManager(QObject):
             atomic_write(self.token_path, encode(self._token))  # mkstemp gives owner-only permissions.
             operation = result['operation']
             if operation in ('login', 'connect'):
+                if self.settings['account_email'] != result['email']:
+                    self.settings.update(digest='', last_sync='', remote_file_id='', remote_checksum='')
+                self.settings['account_email'] = result['email']
+                self.needs_restore = False
                 if operation == 'login':
                     self.settings.update(digest='', last_sync='')
-                    self._save_state()
+                self._save_state()
                 self.connected = True
                 self.email = result['email']
                 self.status = 'Połączono z Dyskiem Google.'
@@ -402,6 +457,8 @@ class GDriveSyncManager(QObject):
                 self.schedule_sync()
             elif operation == 'upload':
                 self.settings.update(digest=self._upload_digest, last_sync=datetime.now(timezone.utc).isoformat())
+                remote = result['remote']
+                self.settings.update(remote_file_id=remote['id'], remote_checksum=remote['checksum'])
                 self._save_state()
                 self.status = 'Kopia została zapisana na Dysku Google.'
                 self.sync_finished.emit(1)
@@ -411,6 +468,8 @@ class GDriveSyncManager(QObject):
                 self._delivery = ('list', result['backups'])
             elif operation == 'download':
                 self.status = 'Kopia gotowa do przywrócenia.'
+                self._restore_checkpoint = result.get('remote')
+                self._restore_snapshot = result['snapshot']
                 self._delivery = ('download', result['snapshot'])
         except (OSError, ValueError):
             self.status = 'Nie udało się zapisać lokalnych danych Google.'
@@ -434,6 +493,13 @@ class GDriveSyncManager(QObject):
             return
         try:
             restore_snapshot(self.root, snapshot)
+            if snapshot == self._restore_snapshot and self._restore_checkpoint:
+                self.settings.update(remote_file_id=self._restore_checkpoint['id'],
+                                     remote_checksum=self._restore_checkpoint['checksum'])
+            self.settings['digest'] = ''
+            self._save_state()
+            self.needs_restore = False
+            self._restore_checkpoint = self._restore_snapshot = None
             self.status = 'Przywrócono dane. Poprzedni stan zapisano w folderze recovery.'
             self.data_restored.emit()
             self.schedule_sync()
