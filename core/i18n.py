@@ -5,6 +5,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, QCoreApplication, QTranslator, QLi
 
 # Polish source strings are stable identifiers for the interface.
 EN = {
+    'Wróć do ulubionych': 'Rediscover a favourite',
     'Upuść utwór tutaj, aby odtworzyć go jako następny.': 'Drop a track here to play it next.',
     'DYSK GOOGLE': 'GOOGLE DRIVE',
     'Ustawienia, playlisty i okładki zapisujemy w jednym prywatnym pliku music-crow-config.json na Dysku zalogowanego użytkownika.': 'Settings, playlists and covers are stored in one private music-crow-config.json file on the signed-in user’s Google Drive.',
@@ -162,7 +163,10 @@ EN.update({
 })
 PATTERNS = [
     (r'Playlisty: (\d+)', 'Playlists: {}'), (r'Utwory: (\d+)', 'Tracks: {}'), (r'Wyniki: (\d+)', 'Results: {}'),
-    (r'Na podstawie: (.*)', 'Based on: {}'), (r'Importing\.\.\. (\d+)/(\d+) tracks', 'Importing… {}/{} tracks'),
+    (r'Na podstawie: (.*)', 'Based on: {}'),
+    (r'Pasuje do teraz: (.*)', 'Matches what is playing: {}'),
+    (r'Powiązane przez playlisty: (.*)', 'Connected through your playlists: {}'),
+    (r'Importing\.\.\. (\d+)/(\d+) tracks', 'Importing… {}/{} tracks'),
     (r'✅ Imported (\d+) tracks!', 'Imported {} tracks!'), (r'Error: (.*)', 'Error: {}'),
 ]
 

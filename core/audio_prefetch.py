@@ -3,6 +3,7 @@ import hashlib
 import logging
 import os
 from pathlib import Path
+from core.app_paths import cache_dir
 import shutil
 import sys
 import tempfile
@@ -74,7 +75,7 @@ class AudioPrefetcher(QObject):
 
     def __init__(self, parent=None, directory=None):
         super().__init__(parent)
-        self.directory = Path(directory) if directory else Path.home() / '.cache/music-crow/audio'
+        self.directory = Path(directory) if directory else cache_dir() / 'audio'
         self._worker = None
         self._wanted = ''
         self._protected = set()

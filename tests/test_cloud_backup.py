@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QImage, QColor
 from PyQt6.QtCore import QObject, pyqtSignal
 from core import gdrive_sync as drive
-from core.cloud_backup import collect_snapshot, restore_snapshot, validate_snapshot, encode, atomic_write
+from core.cloud_backup import collect_snapshot, restore_snapshot, validate_snapshot, encode, atomic_write, TRACK_FIELDS
 from core.i18n import language_manager
 from core.theme_manager import ThemeManager
 from ui.settings_dialog import SettingsDialog
@@ -57,6 +57,38 @@ class BackupTests(unittest.TestCase):
         saved = json.loads((destination / 'playlists/Favourites.json').read_text())
         self.assertEqual(saved['cover_image'], str(destination / 'covers/Favourites.png'))
         self.assertFalse(QImage(saved['cover_image']).isNull())
+
+    def test_null_metadata_in_playlists_and_history_can_be_backed_up_and_restored(self):
+        track = {field: None for field in TRACK_FIELDS}
+        track.update(url=TRACK['url'], duration=None)
+        self.write('playlists/Favourites.json', {'tracks': [track, TRACK]})
+        self.write('listening_history.json', {'track': {'track': track, 'plays': 3, 'last_played': 123.0}})
+        original = (self.root / 'playlists/Favourites.json').read_bytes()
+        for include_history in (False, True):
+            with self.subTest(include_history=include_history):
+                snapshot = collect_snapshot(self.root, include_history=include_history)
+                cleaned = snapshot['playlists']['Favourites']['tracks'][0]
+                self.assertEqual(cleaned['url'], TRACK['url'])
+                self.assertEqual(cleaned['duration'], 0)
+                for field in TRACK_FIELDS:
+                    if field != 'url':
+                        self.assertEqual(cleaned[field], '')
+                self.assertEqual(len(snapshot['playlists']['Favourites']['tracks']), 2)
+                if include_history:
+                    self.assertEqual(snapshot['history']['track']['track'], cleaned)
+                destination = self.root / ('restored-' + str(include_history))
+                restore_snapshot(destination, snapshot)
+                restored = collect_snapshot(destination, include_history=include_history)
+                self.assertEqual(restored['playlists'], snapshot['playlists'])
+                self.assertEqual(restored['history'], snapshot['history'])
+        self.assertEqual((self.root / 'playlists/Favourites.json').read_bytes(), original)
+
+    def test_non_text_metadata_other_than_null_is_still_rejected(self):
+        for value in (42, False, [], {}, 'x' * 20001):
+            with self.subTest(value_type=type(value).__name__):
+                self.write('playlists/Favourites.json', {'tracks': [dict(TRACK, title=value)]})
+                with self.assertRaises(ValueError):
+                    collect_snapshot(self.root)
 
     def test_conflicting_playlist_is_kept_and_recovery_is_created(self):
         snapshot = collect_snapshot(self.root)
@@ -179,6 +211,18 @@ class ManagerTests(unittest.TestCase):
         self.assertFalse(self.manager.busy)
         self.assertEqual(self.manager.email, 'example@example.com')
         self.assertEqual(json.loads(self.manager.token_path.read_text()), TOKEN)
+
+    def test_manual_backup_with_missing_metadata_reaches_upload_worker(self):
+        self.connect()
+        atomic_write(self.root / 'playlists/Test.json', encode({
+            'tracks': [dict(TRACK, title=None, uploader=None, duration=None)]}))
+        self.manager.sync_now()
+        self.assertTrue(self.manager.busy)
+        self.assertEqual(self.manager._worker.operation, 'upload')
+        payload = json.loads(self.manager._worker.kwargs['payload'])
+        self.assertEqual(payload['playlists']['Test']['tracks'][0]['url'], TRACK['url'])
+        self.manager._worker.finish()
+        self.assertEqual(self.manager.status, 'Kopia została zapisana na Dysku Google.')
 
     def test_bundled_desktop_client_logs_in_without_a_user_config_file(self):
         from ui.cloud_settings import CloudSettings

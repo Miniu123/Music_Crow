@@ -53,6 +53,10 @@ def clean_track(track):
     result = {}
     for field in TRACK_FIELDS:
         value = track.get(field, '')
+        # Extractors can explicitly return JSON null for unavailable metadata.
+        # Treat that like an absent field, while still rejecting other bad types.
+        if value is None:
+            value = ''
         if not isinstance(value, str) or len(value) > 20000:
             raise ValueError('Nieprawidłowa kopia danych.')
         result[field] = value

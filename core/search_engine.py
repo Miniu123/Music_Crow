@@ -59,10 +59,11 @@ class SearchWorker(QThread):
     results_ready = pyqtSignal(list)
     search_error = pyqtSignal(str)
 
-    def __init__(self, query: str, platforms: list[str] | None = None, parent=None):
+    def __init__(self, query: str, platforms: list[str] | None = None, parent=None, *, result_limit=5):
         super().__init__(parent)
         self.query = query
         self.platforms = list(PLATFORM_PREFIXES) if platforms is None else platforms
+        self.result_limit = max(1, min(20, int(result_limit)))
 
     def run(self):
         all_results = []
@@ -72,6 +73,7 @@ class SearchWorker(QThread):
             if self.isInterruptionRequested():
                 return
             prefix = PLATFORM_PREFIXES.get(platform, "ytsearch5:")
+            prefix = prefix.replace('5:', f'{self.result_limit}:')
             search_url = f"{prefix}{self.query}"
 
             try:
@@ -107,6 +109,10 @@ class SearchWorker(QThread):
                             "url": data.get("url", data.get("webpage_url", "")),
                             "platform": platform,
                         }
+                        if isinstance(data.get('artist'), str) and data['artist']:
+                            result['artist'] = data['artist']
+                        if data.get('is_live') is True:
+                            result['is_live'] = True
                         all_results.append(result)
                     except json.JSONDecodeError:
                         continue

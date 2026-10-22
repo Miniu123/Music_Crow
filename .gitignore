@@ -6,3 +6,5 @@ credentials.json
 google_token.json
 token.json
 core/google_oauth_client.json
+packaging/flatpak/wheels/
+packaging/flatpak/sources/

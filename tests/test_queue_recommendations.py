@@ -208,6 +208,49 @@ class QueueTests(unittest.TestCase):
         self.assertFalse(manager._candidates)
         self.assertFalse(p._recommended_queue)
 
+    def test_continuation_discovers_playlist_neighbour_without_unrelated_history(self):
+        p = self.player
+        p.play_queue([song('Now', 'Chosen')])
+        library = MagicMock()
+        library.list_playlists.return_value = ['Connected', 'Unrelated']
+        library.get_tracks.side_effect = lambda name: ([song('Now', 'Chosen'), song('Saved', 'Neighbour')]
+                                                      if name == 'Connected' else [song('Elsewhere', 'Other')])
+        history = MagicMock(entries={'unrelated': {'track': song('History', 'Other'), 'plays': 1000, 'last_played': 100}})
+        manager = PlaybackRecommendationManager(p, library, history)
+        self.addCleanup(manager.shutdown)
+        manager._profile = manager._make_profile()
+        manager._cache = [song('Discovery', 'Neighbour'), song('Unrelated new', 'Other')]
+        manager._publish()
+        artists = {t['uploader'] for t in p._recommended_queue}
+        self.assertIn('Neighbour', artists)
+        self.assertNotIn('Other', artists)
+
+    def test_priority_queue_recording_is_not_suggested_under_another_url(self):
+        p = self.player
+        p.play_queue([song('Now')])
+        p.add_to_queue(song('Queued (Official Audio)'))
+        manager = PlaybackRecommendationManager(p, None, MagicMock(entries={}))
+        self.addCleanup(manager.shutdown)
+        manager._profile = manager._make_profile()
+        manager._cache = [song('Queued (Official Video)'), song('Fresh')]
+        manager._publish()
+        self.assertEqual([t['title'] for t in p._recommended_queue], ['Fresh'])
+
+    def test_depleted_continuation_pool_can_refill_before_half_hour(self):
+        p = self.player
+        p.play_queue([song('Now')])
+        manager = PlaybackRecommendationManager(p, None, MagicMock(entries={}))
+        self.addCleanup(manager.shutdown)
+        manager._profile = manager._make_profile()
+        manager._cache = [song('Used')]
+        p._recommendation_seen.add(track_key(song('Used')))
+        manager._fingerprint = ('Artist',)
+        manager._last_fetch = 100
+        with patch('core.recommendations.time.monotonic', return_value=161), patch('core.recommendations.SearchWorker') as worker:
+            manager.refresh()
+            worker.assert_called_once()
+
+
     def test_crossfade_selects_recommendations_after_playlist(self):
         p = self.player
         p.play_queue([song('A')])

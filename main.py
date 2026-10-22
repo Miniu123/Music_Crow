@@ -12,6 +12,8 @@ from core.i18n import language_manager, tr
 
 def main():
     app = QApplication(sys.argv)
+    app.setApplicationName('Music Crow')
+    app.setDesktopFileName('io.github.Miniu123.MusicCrow')
 
     # mpv requires LC_NUMERIC="C" but QApplication changes it, so we revert it
     locale.setlocale(locale.LC_NUMERIC, 'C')

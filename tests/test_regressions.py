@@ -82,6 +82,14 @@ class PlayerTests(unittest.TestCase):
 
 
 class SearchTests(unittest.TestCase):
+    def test_recommendation_search_can_expand_pool_without_changing_foreground_default(self):
+        for requested, expected in ((5, 5), (12, 12), (100, 20)):
+            worker = SearchWorker('Artist music', ['YouTube Music'], result_limit=requested)
+            with patch('core.search_engine.run_extractor', return_value=subprocess.CompletedProcess([], 0, '', '')) as run:
+                worker.run()
+            self.assertEqual(run.call_args.args[1][-1], f'ytsearch{expected}:Artist music')
+        self.assertEqual(SearchWorker('music').result_limit, 5)
+
     def test_default_sources_are_real_sources(self):
         self.assertEqual(SearchWorker('music').platforms, ['YouTube Music', 'SoundCloud'])
         self.assertEqual(len(PlatformFilterBar().buttons), 2)

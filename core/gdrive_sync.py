@@ -5,6 +5,7 @@ import secrets
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from core.app_paths import config_dir
 from urllib.parse import parse_qs, urlparse
 from wsgiref.simple_server import make_server, WSGIRequestHandler
 from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
@@ -215,7 +216,7 @@ class GDriveSyncManager(QObject):
 
     def __init__(self, parent=None, root=None):
         super().__init__(parent)
-        self.root = Path(root) if root else Path.home() / '.config/music-crow'
+        self.root = Path(root) if root else config_dir()
         self.root.mkdir(parents=True, exist_ok=True)
         self.token_path = self.root / 'google_token.json'
         self.client_path = self.root / 'credentials.json'

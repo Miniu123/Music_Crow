@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+from core.app_paths import config_dir
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QColor
 
@@ -53,7 +54,7 @@ class ThemeManager(QObject):
 
     def __init__(self):
         super().__init__()
-        self.config_dir = Path.home() / ".config" / "music-crow"
+        self.config_dir = config_dir()
         self.config_path = self.config_dir / "theme.json"
         self.current_theme = dict(DEFAULT_THEME)
         self.load_theme()

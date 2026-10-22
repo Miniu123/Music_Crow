@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 from core.recommendations import (ListeningHistory, RecommendationManager,
-                                  build_profile, rank_tracks, track_key)
+                                  build_profile, rank_tracks, track_key, recording_key, discovery_seeds)
 
 app = QApplication.instance() or QApplication([])
 
@@ -82,6 +82,84 @@ class HistoryTests(unittest.TestCase):
 
 
 class RankingTests(unittest.TestCase):
+    def test_artist_aliases_and_packaging_are_deduplicated_but_versions_survive(self):
+        original = track('Artist - Song (Official Video)', 'ArtistVEVO', 'https://example.com/1')
+        audio = track('Song [Official Audio]', 'Artist - Topic', 'https://example.com/2')
+        remix = track('Song (Night Remix)', 'Artist', 'https://example.com/3')
+        self.assertEqual(recording_key(original), recording_key(audio))
+        self.assertNotEqual(recording_key(original), recording_key(remix))
+        profile = build_profile([original], {})
+        result = rank_tracks([audio, remix], profile, discovery=True)
+        self.assertEqual([t['url'] for t in result], [remix['url']])
+
+    def test_same_title_by_different_artists_is_not_a_duplicate(self):
+        songs = [track('Home', 'One', 'https://example.com/one'),
+                 track('Home', 'Two', 'https://example.com/two')]
+        self.assertEqual(len(rank_tracks(songs, build_profile(songs, {}))), 2)
+
+    def test_artist_match_uses_word_boundaries(self):
+        profile = build_profile([track('Saved', 'Air')], {})
+        self.assertEqual(rank_tracks([track('Stairway', 'Other')], profile, discovery=True), [])
+
+    def test_recent_listening_is_temporarily_demoted(self):
+        now = 2_000_000
+        recent, older = track('Recent'), track('Older')
+        entries = {track_key(t): {'track': t, 'plays': 8, 'last_played': last}
+                   for t, last in [(recent, now), (older, now - 86400 * 2)]}
+        profile = build_profile([], entries, now)
+        result = rank_tracks([recent, older], profile)
+        self.assertEqual(result[0]['title'], 'Older')
+
+    def test_active_artist_beats_large_unrelated_library(self):
+        saved = [track(str(i), 'Large artist') for i in range(100)] + [track('Current', 'Session')]
+        profile = build_profile(saved, {}, context=[saved[-1]])
+        result = rank_tracks([track('New hit', 'Large artist'), track('New session', 'Session')],
+                             profile, discovery=True)
+        self.assertEqual(result[0]['uploader'], 'Session')
+        self.assertEqual(result[0]['recommendation_reason'], 'Pasuje do teraz: Session')
+
+    def test_related_artists_require_playlist_evidence(self):
+        active, neighbour, unrelated = track('Current', 'Anchor'), track('Saved', 'Neighbour'), track('Other', 'Elsewhere')
+        profile = build_profile([active], {}, context=[active],
+                                playlist_groups=[[active, neighbour], [unrelated]])
+        result = rank_tracks([track('New', 'Neighbour'), track('Random', 'Elsewhere')], profile, discovery=True)
+        self.assertEqual([t['uploader'] for t in result], ['Neighbour'])
+        self.assertIn('Powiązane przez playlisty:', result[0]['recommendation_reason'])
+
+    def test_explicit_collaborator_can_be_discovered(self):
+        saved = track('Night (feat. Guest)', 'Anchor')
+        profile = build_profile([saved], {})
+        self.assertIn('Guest', discovery_seeds(profile))
+        result = rank_tracks([track('Solo', 'Guest'), track('Random', 'Stranger')], profile, discovery=True)
+        self.assertEqual([t['uploader'] for t in result], ['Guest'])
+
+    def test_seed_rotation_keeps_anchors_and_explores_less_common_artists(self):
+        profile = build_profile([track(str(i), 'Artist ' + str(i)) for i in range(9)], {})
+        first, second = discovery_seeds(profile, 0), discovery_seeds(profile, 1)
+        self.assertEqual(first[:2], second[:2])
+        self.assertNotEqual(first[2:], second[2:])
+        self.assertEqual(len(first), 4)
+
+    def test_quality_filters_do_not_remove_saved_long_tracks(self):
+        songs = [dict(track('Long'), duration=3600), dict(track('Short'), duration=20),
+                 dict(track('Live'), is_live=True), track('Artist full album'), track('Good')]
+        profile = build_profile([track('Saved')], {})
+        result = rank_tracks(songs, profile, discovery=True)
+        self.assertEqual([t['title'] for t in result], ['Good'])
+        self.assertTrue(rank_tracks([songs[0]], build_profile([songs[0]], {})))
+
+    def test_manual_refresh_exposure_demotes_previously_shown_tracks(self):
+        songs = [track('Alternative ' + str(i)) for i in range(8)]
+        profile = build_profile([track('Saved')], {})
+        first = rank_tracks(songs, profile, discovery=True)
+        exposure = {track_key(t): 1 for t in first}
+        second = rank_tracks(songs, profile, discovery=True, exposure=exposure)
+        self.assertTrue({track_key(t) for t in first}.isdisjoint(track_key(t) for t in second))
+
+    def test_malformed_history_is_ignored_without_losing_saved_songs(self):
+        profile = build_profile([track('Saved')], {'bad': {'track': track('Bad'), 'plays': float('nan'), 'last_played': 1}})
+        self.assertEqual(len(profile.known), 1)
+
     def test_youtube_links_are_deduplicated(self):
         a = {'url': 'https://music.youtube.com/watch?v=abc&list=xyz'}
         b = {'url': 'https://youtu.be/abc?t=12'}
@@ -119,6 +197,31 @@ class RankingTests(unittest.TestCase):
 
 
 class ManagerTests(unittest.TestCase):
+    def test_home_excludes_queued_tracks_and_fills_offline_slots(self):
+        player = FakePlayer()
+        songs = [track(str(i), 'Artist ' + str(i)) for i in range(10)]
+        player._base_queue, player._priority_queue = [songs[0]], [songs[1]]
+        manager = RecommendationManager(player, None, MagicMock(entries={}))
+        self.addCleanup(manager.shutdown)
+        manager._profile = build_profile(songs, {})
+        emitted = []
+        manager.updated.connect(emitted.append)
+        manager._publish()
+        self.assertEqual(len(emitted[-1]), 8)
+        self.assertFalse({track_key(t) for t in emitted[-1]} & {track_key(t) for t in songs[:2]})
+
+    def test_failed_search_retries_soon_instead_of_caching_failure_for_half_hour(self):
+        manager = RecommendationManager(FakePlayer(), None, MagicMock(entries={}))
+        self.addCleanup(manager.shutdown)
+        profile = build_profile([track('Saved')], {})
+        manager._make_profile = lambda: profile
+        manager._fingerprint = tuple(discovery_seeds(profile, manager._rotation))
+        manager._last_fetch, manager._had_error = 100, True
+        with patch('core.recommendations.time.monotonic', return_value=161), patch('core.recommendations.SearchWorker') as search:
+            manager.refresh()
+            search.assert_called_once()
+            self.assertEqual(search.call_args.kwargs['result_limit'], 12)
+
     def test_empty_profile_makes_no_network_calls(self):
         player = FakePlayer()
         history = MagicMock(entries={})

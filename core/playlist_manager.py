@@ -2,12 +2,13 @@ import json
 import os
 import shutil
 import tempfile
+from core.app_paths import config_dir
 from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
 
 
-PLAYLISTS_DIR = os.path.expanduser("~/.config/music-crow/playlists")
-COVERS_DIR = os.path.expanduser("~/.config/music-crow/covers")
+PLAYLISTS_DIR = str(config_dir() / "playlists")
+COVERS_DIR = str(config_dir() / "covers")
 
 
 class PlaylistManager(QObject):
