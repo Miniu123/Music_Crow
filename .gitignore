@@ -8,3 +8,15 @@ token.json
 core/google_oauth_client.json
 packaging/flatpak/wheels/
 packaging/flatpak/sources/
+
+# Generated build output and local caches
+/build/
+/dist/
+/.pytest_cache/
+/.mypy_cache/
+/.ruff_cache/
+.coverage
+htmlcov/
+
+# Do not commit an archive of the checkout (including Git and environments).
+/music-crow.zip

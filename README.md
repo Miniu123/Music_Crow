@@ -27,7 +27,24 @@ flatpak run io.github.Miniu123.MusicCrow
 
 Settings and playlists are stored in `~/.var/app/io.github.Miniu123.MusicCrow/config/music-crow/`. The Flatpak keeps its data separate from the Python version; use Google Drive backup and restore to transfer your library. This local bundle does not provide automatic app updates; install a newer bundle when one is published.
 
-To check the download, also save [SHA256SUMS](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/SHA256SUMS) beside the `.flatpak` file and run `sha256sum -c SHA256SUMS`.
+To check the download, also save [SHA256SUMS](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/SHA256SUMS) beside the `.flatpak` file and run `sha256sum --ignore-missing -c SHA256SUMS`. The checksum list also covers the Windows installer; only downloaded files are checked.
+
+## Install the Windows app
+
+Run [Music-Crow-0.1.1-Windows-x64-Setup.exe](Music-Crow-0.1.1-Windows-x64-Setup.exe) on Windows 10/11 x64. The installer is approximately 81 MiB; the installed application uses approximately 236 MiB, plus its audio cache. Python does not need to be installed separately. Installation is per user and does not require administrator rights.
+
+The installer adds a Start menu shortcut. Uninstalling preserves playlists and settings in `%APPDATA%\Music Crow`. Installation, startup and uninstallation have been tested under Wine; native Windows testing is still outstanding.
+
+## Project layout
+
+- `main.py` and `start.sh`: application entry points.
+- `core/`, `ui/`, `assets/`: application logic, interface and resources.
+- `tests/`: automated checks.
+- `docs/`: GitHub Pages website, privacy policy and license page.
+- `packaging/flatpak/`: Flatpak build scripts and instructions.
+- Root `.flatpak` and `Setup.exe` files: ready-to-install releases, verified by `SHA256SUMS`.
+
+Use `.venv/` for local development. Generated caches, build output and dependency downloads are ignored by Git. Keep full-checkout archives and separate build workspaces outside the project root.
 
 ## Run from source (developers)
 
