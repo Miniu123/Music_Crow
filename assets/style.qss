@@ -31,6 +31,18 @@ QLineEdit {
     border-radius: 12px; padding: 10px 15px; selection-background-color: {{ACCENT_COLOR}};
 }
 QLineEdit:hover { border-color: rgba(190,200,235,0.3); }
+#LicenseDialog QPlainTextEdit {
+    color: #E9ECF6; background: {{MAIN_BG_COLOR}};
+    border: 1px solid rgba(190,200,235,0.14); border-radius: 10px;
+    padding: 14px; selection-background-color: {{ACCENT_COLOR}};
+}
+#LicenseDialog QTabWidget::pane { border: none; padding-top: 8px; }
+#LicenseDialog QTabBar::tab {
+    color: #CFD5E8; background: {{MAIN_BG_COLOR}};
+    border: 1px solid rgba(190,200,235,0.14); border-radius: 8px;
+    padding: 9px 14px; margin-right: 6px;
+}
+#LicenseDialog QTabBar::tab:selected { color: white; background: {{ACCENT_25}}; border-color: {{ACCENT_COLOR}}; }
 QLineEdit:focus { border-color: {{ACCENT_COLOR}}; background: {{ACCENT_05}}; }
 #HomeSearchInput, #SearchPageInput { border-radius: 14px; padding: 12px 18px; font-size: 14px; }
 #TitleBar { background: rgba(5,8,16,0.12); }

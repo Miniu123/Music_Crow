@@ -2,7 +2,34 @@
 
 A desktop music player built with Python and PyQt6. Search for tracks on YouTube Music and SoundCloud, store playlists locally, and use playback queues, an equalizer, and crossfade transitions.
 
-## Getting started
+## Install the Linux app (Flatpak)
+
+**[Download Music Crow 0.1.0 for Linux x86_64](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/Music-Crow-0.1.0-x86_64.flatpak)**
+
+The ready-to-install `Music-Crow-0.1.0-x86_64.flatpak` is stored in the root of this repository. This build supports 64-bit Intel/AMD Linux systems; it is not a Windows, macOS or ARM package. You do not need to install Python or libmpv separately.
+
+1. Install Flatpak for your Linux distribution using the [official setup instructions](https://flatpak.org/setup/).
+2. Download the file above. Open a terminal in the folder containing it (usually Downloads), or in the repository root if you cloned the project.
+3. Add Flathub for runtime dependencies, then install Music Crow:
+
+```bash
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user ./Music-Crow-0.1.0-x86_64.flatpak
+```
+
+The first installation may download additional runtime packages. If your software manager supports local Flatpak bundles, you can also open the `.flatpak` file there.
+
+Launch **Music Crow** from the application menu, or run:
+
+```bash
+flatpak run io.github.Miniu123.MusicCrow
+```
+
+Settings and playlists are stored in `~/.var/app/io.github.Miniu123.MusicCrow/config/music-crow/`. The Flatpak keeps its data separate from the Python version; use Google Drive backup and restore to transfer your library. This local bundle does not provide automatic app updates; install a newer bundle when one is published.
+
+To check the download, also save [SHA256SUMS](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/SHA256SUMS) beside the `.flatpak` file and run `sha256sum -c SHA256SUMS`.
+
+## Run from source (developers)
 
 Requires Python 3.10 or later and the system **libmpv** library (the mpv/libmpv package, depending on your distribution).
 
@@ -111,3 +138,9 @@ OAuth/Drive protocol tests use controlled responses and cover PKCE, sign-in stat
 The static website lives in [`docs/`](docs/README.md). It includes a Polish product homepage, a privacy policy describing local storage and optional Google Drive backups, and the public contact `minu3009@gmail.com`.
 
 To publish it, push `docs/` to GitHub, then choose **Settings → Pages → Deploy from a branch → main → /docs → Save**. After a successful deployment, the expected homepage is `https://miniu123.github.io/Music_Crow/` and the privacy policy is `https://miniu123.github.io/Music_Crow/privacy.html`. See the website guide for OAuth branding, domain verification, and custom-domain setup. Publishing on Pages does not automatically complete Google's verification.
+
+## License
+
+The original Music Crow code and documentation are licensed under the [MIT License](LICENSE), copyright © 2026 Miniu123. MIT permits commercial use, including advertising, as well as modification and redistribution with the required copyright and license notice. Others may distribute modified versions, including versions without ads.
+
+**Dependencies retain their own licenses.** The current application uses GPLv3 PyQt6 and the default GPL build of libmpv. Distributing the combined application requires compliance with these licenses, including the applicable source-code requirements; the complete Flatpak is not MIT-only. See [third-party notices and distribution notes](THIRD_PARTY_NOTICES.md). License information is available offline in **Settings → About and licenses → Read licenses** and on the [license page](docs/license.html).

@@ -16,7 +16,7 @@
   <a class="skip" href="#main">Przejdź do treści</a>
   <header class="site-header wrap">
     <a class="brand" href="./" aria-label="Music Crow — strona główna"><img src="assets/icon.png" alt="" width="40" height="40">Music Crow<span class="brand-dot">.</span></a>
-    <nav aria-label="Nawigacja główna"><a href="#funkcje">Funkcje</a><a href="#google-drive">Dysk Google</a><a href="privacy.html">Prywatność</a><a class="nav-github" href="https://github.com/Miniu123/Music_Crow">GitHub ↗</a></nav>
+    <nav aria-label="Nawigacja główna"><a href="#funkcje">Funkcje</a><a href="#google-drive">Dysk Google</a><a href="privacy.html">Prywatność</a><a href="license.html">Licencja</a><a class="nav-github" href="https://github.com/Miniu123/Music_Crow">GitHub ↗</a></nav>
   </header>
   <main id="main">
     <section class="hero wrap" aria-labelledby="hero-title">
@@ -24,8 +24,8 @@
         <p class="eyebrow"><span class="status-dot"></span> Odtwarzacz na Twój komputer</p>
         <h1 id="hero-title">Twoja muzyka.<br><span>Twój rytm.</span></h1>
         <p class="lead">Wracaj do ulubionych utworów. Odkrywaj kolejne.<br class="desktop-break"> Ułóż wszystko po swojemu w Music Crow.</p>
-        <div class="actions"><a class="button primary" href="https://github.com/Miniu123/Music_Crow#readme">Zobacz projekt na GitHub <span aria-hidden="true">↗</span></a><a class="text-link" href="#funkcje">Poznaj aplikację <span aria-hidden="true">↓</span></a></div>
-        <p class="hero-note">YouTube Music · SoundCloud · Interfejs PL / EN</p>
+        <div class="actions"><a class="button primary" href="https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/Music-Crow-0.1.0-x86_64.flatpak" download="Music-Crow-0.1.0-x86_64.flatpak">Pobierz na Linux <span aria-hidden="true">↓</span></a><a class="text-link" href="#pobierz">Jak zainstalować <span aria-hidden="true">↓</span></a></div>
+        <p class="hero-note">Wersja 0.1.0 · Flatpak · Linux x86_64 · Interfejs PL / EN</p>
       </div>
       <figure class="app-figure">
         <div class="app-preview" aria-label="Ilustracja dwóch kolejek odtwarzania w Music Crow">
@@ -53,9 +53,30 @@
       <div class="drive-copy"><p class="eyebrow">TWÓJ DYSK. TWOJE DANE.</p><h2 id="drive-title">Ulubione rzeczy<br>warto zachować.</h2><p>Połącz opcjonalnie swoje konto Google, aby zapisywać ustawienia, playlisty i okładki w jednym prywatnym pliku na <strong>swoim Dysku Google</strong>.</p><p>Logowanie otwiera się w przeglądarce systemowej. Na drugim komputerze zaloguj się na to samo konto i wybierz „Przywróć kopię”.</p><a class="text-link" href="privacy.html">Przeczytaj politykę prywatności <span aria-hidden="true">↗</span></a></div>
       <div class="backup-note"><span class="micro">JAK TO DZIAŁA</span><ol><li><span>1</span><div><h3>Wybierasz swoje konto</h3><p>Google pyta Cię o zgodę na dostęp.</p></div></li><li><span>2</span><div><h3>Zapisujesz własną kopię</h3><p>Jeden plik danych aplikacji na Twoim Dysku.</p></div></li><li><span>3</span><div><h3>Decydujesz, co zachować</h3><p>Kopia historii słuchania jest domyślnie wyłączona.</p></div></li></ol><div class="file-pill"><span aria-hidden="true">↳</span> music-crow-config.json</div></div>
     </section>
-    <section class="start-section wrap section" id="start"><div><p class="eyebrow">GOTOWY NA SWOJĄ KOLEJKĘ?</p><h2>Zacznij od Music Crow.</h2><p>Kod, wymagania i instrukcję uruchomienia znajdziesz w repozytorium. Aplikacja wymaga Pythona 3.10+ oraz libmpv. Wyszukiwanie i odtwarzanie źródeł online wymagają internetu.</p></div><a class="button primary" href="https://github.com/Miniu123/Music_Crow#readme">Instrukcja uruchomienia ↗</a></section>
+    <section class="download-section wrap section" id="pobierz" aria-labelledby="download-title">
+      <span id="start"></span>
+      <p class="eyebrow">TWOJA MUZYKA. JEDEN PLIK.</p>
+      <h2 id="download-title">Pobierz Music Crow.</h2>
+      <p class="download-intro">Gotowa aplikacja na Linux. Pobierz, zainstaluj i ułóż swoją pierwszą kolejkę.</p>
+      <a class="button primary download-button" href="https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/Music-Crow-0.1.0-x86_64.flatpak" download="Music-Crow-0.1.0-x86_64.flatpak">Pobierz Music Crow <span aria-hidden="true">↓</span></a>
+      <p class="download-meta">0.1.0 · Flatpak · Linux x86_64 (Intel / AMD)</p>
+      <div class="download-install">
+        <h3>Instalacja w kilku krokach</h3>
+        <ol>
+          <li>Zainstaluj <a href="https://flatpak.org/setup/">Flatpak dla swojej dystrybucji Linux</a>.</li>
+          <li>Pobierz aplikację i otwórz terminal w folderze z pobranym plikiem.</li>
+          <li>Wklej poniższe polecenia. Przy pierwszej instalacji mogą zostać pobrane dodatkowe składniki.</li>
+        </ol>
+        <pre><code>flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user ./Music-Crow-0.1.0-x86_64.flatpak</code></pre>
+        <p>Potem uruchom <strong>Music Crow</strong> z menu aplikacji lub wpisz:</p>
+        <pre><code>flatpak run io.github.Miniu123.MusicCrow</code></pre>
+        <p>Python i biblioteka odtwarzania są już w paczce. Do wyszukiwania i odtwarzania muzyki online potrzebujesz internetu.</p>
+      </div>
+      <div class="download-links"><a href="https://github.com/Miniu123/Music_Crow#install-the-linux-app-flatpak">Pełna instrukcja ↗</a><a href="https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/SHA256SUMS">Suma kontrolna SHA-256</a><a href="license.html">Licencja i biblioteki</a></div>
+    </section>
     <section class="contact-section wrap" id="kontakt"><div><h2>Porozmawiajmy.</h2><p>Autor projektu: <a href="https://github.com/Miniu123">Miniu123</a>. Pytania o aplikację lub prywatność?</p></div><a class="contact-link" href="mailto:minu3009@gmail.com">minu3009@gmail.com ↗</a></section>
   </main>
-  <footer class="site-footer wrap"><a class="brand" href="./">Music Crow<span class="brand-dot">.</span></a><p>Niezależny projekt. Nie jest oficjalnym produktem Google ani SoundCloud.</p><div><a href="privacy.html">Polityka prywatności</a><a href="https://github.com/Miniu123/Music_Crow">GitHub ↗</a></div></footer>
+  <footer class="site-footer wrap"><a class="brand" href="./">Music Crow<span class="brand-dot">.</span></a><p>Niezależny projekt. Nie jest oficjalnym produktem Google ani SoundCloud.</p><div><a href="privacy.html">Polityka prywatności</a><a href="license.html">Licencja MIT i biblioteki</a><a href="https://github.com/Miniu123/Music_Crow">GitHub ↗</a></div></footer>
 </body>
 </html>

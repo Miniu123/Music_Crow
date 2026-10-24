@@ -33,6 +33,17 @@ Application data is stored under `~/.var/app/io.github.Miniu123.MusicCrow/config
 
 ## Verification
 
-`smoke_test.py` checks the installed modules, silent MPV audio decoding, a real Qt main window, local settings/backup creation and presence of the publisher's OAuth configuration. It creates temporary test data; it does not sign in or upload to Google. Run it with the final Platform runtime rather than the SDK. OAuth consent and online service availability need a separate interactive check.
+`smoke_test.py` checks the installed modules, silent MPV audio decoding, a real Qt main window, local settings/backup creation and presence of the publisher's OAuth configuration. It creates temporary test data; it does not sign in or upload to Google. Install the bundle first and run the test using `flatpak run`, which prepares the application's library cache. `flatpak build --runtime` does not reproduce that setup and can incorrectly report that libmpv is missing. Do not use the SDK to verify runtime dependencies.
+
+From this repository, after installing the bundle:
+
+```sh
+flatpak run --env=QT_QPA_PLATFORM=offscreen \
+  --filesystem="$PWD/packaging/flatpak:ro" \
+  --command=python3 io.github.Miniu123.MusicCrow \
+  "$PWD/packaging/flatpak/smoke_test.py" /tmp/music-crow-preview.png
+```
+
+The preview is written inside the Flatpak's temporary directory. OAuth consent and online service availability need a separate interactive check. The current MPRIS implementation may log D-Bus errors for unsupported desktop property queries; these do not prevent startup or audio decoding.
 
 Upstream references: https://docs.flatpak.org/en/latest/first-build.html and https://docs.flatpak.org/en/latest/single-file-bundles.html.

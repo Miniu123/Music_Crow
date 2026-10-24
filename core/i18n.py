@@ -5,6 +5,12 @@ from PyQt6.QtCore import QObject, pyqtSignal, QCoreApplication, QTranslator, QLi
 
 # Polish source strings are stable identifiers for the interface.
 EN = {
+    'O APLIKACJI I LICENCJE': 'ABOUT AND LICENSES',
+    'Licencje': 'Licenses',
+    'Przeczytaj licencje': 'Read licenses',
+    'Biblioteki i dystrybucja': 'Libraries and distribution',
+    'Kod Music Crow: MIT. Biblioteki mają własne licencje, w tym GPLv3 dla PyQt6.': 'Music Crow code: MIT. Libraries have their own licenses, including GPLv3 for PyQt6.',
+    'Brakuje pliku licencji. Pełne informacje: https://github.com/Miniu123/Music_Crow': 'License file missing. Full details: https://github.com/Miniu123/Music_Crow',
     'Wróć do ulubionych': 'Rediscover a favourite',
     'Upuść utwór tutaj, aby odtworzyć go jako następny.': 'Drop a track here to play it next.',
     'DYSK GOOGLE': 'GOOGLE DRIVE',

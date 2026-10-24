@@ -213,6 +213,13 @@ class SettingsDialog(QDialog):
                                  'CROSSFADE_DURATION', 1, 15, theme_manager, body))
         audio.addWidget(SliderRow('Niskie tony', 'Wzmocnienie basu w dB.', 'BASS_GAIN', -15, 15, theme_manager, body))
         audio.addWidget(SliderRow('Wysokie tony', 'Wzmocnienie wysokich częstotliwości w dB.', 'TREBLE_GAIN', -15, 15, theme_manager, body))
+        about = self._section(content, 'O APLIKACJI I LICENCJE')
+        text_column(about, 'Music Crow · © 2026 Miniu123',
+                    'Kod Music Crow: MIT. Biblioteki mają własne licencje, w tym GPLv3 dla PyQt6.')
+        licenses = text(QPushButton(), 'Przeczytaj licencje')
+        licenses.setCursor(Qt.CursorShape.PointingHandCursor)
+        licenses.clicked.connect(self._show_licenses)
+        about.addWidget(licenses)
         content.addStretch()
         scroll.setWidget(body)
         root.addWidget(scroll, 1)
@@ -221,6 +228,10 @@ class SettingsDialog(QDialog):
         done.setFixedHeight(38)
         done.clicked.connect(self.accept)
         root.addWidget(done, alignment=Qt.AlignmentFlag.AlignRight)
+
+    def _show_licenses(self):
+        from ui.license_dialog import LicenseDialog
+        LicenseDialog(self).exec()
 
     def _sync_language(self, language):
         self.language_combo.blockSignals(True)

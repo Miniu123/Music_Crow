@@ -1,6 +1,6 @@
 # Music Crow website — GitHub Pages
 
-A buildless, responsive Polish landing page and privacy policy. The public contact approved for this site is `minu3009@gmail.com`; the publisher is identified by the GitHub handle `Miniu123`. Review the policy against any future application changes before publishing updates.
+A buildless, responsive Polish landing page, privacy policy and license page. The public contact approved for this site is `minu3009@gmail.com`; the publisher is identified by the GitHub handle `Miniu123`. Review the policy against any future application changes before publishing updates.
 
 ## Publish from this repository
 
@@ -14,18 +14,39 @@ Expected addresses after deployment:
 
 - Homepage: `https://miniu123.github.io/Music_Crow/`
 - Privacy policy: `https://miniu123.github.io/Music_Crow/privacy.html`
+- License: `https://miniu123.github.io/Music_Crow/license.html`
+
+The license page distinguishes the MIT license for original project code from dependency and binary-distribution requirements. Keep its embedded MIT text and `assets/LICENSE.txt` identical to the repository's root `LICENSE`. Advertising is described as a possible future feature; the privacy policy continues to describe the current implementation without an advertising system.
 
 No Node.js, npm, backend, build command, external fonts, analytics scripts, or secrets are needed. `.nojekyll` keeps this a plain static site. Relative asset links work under the repository path and under a custom domain. The homepage's illustrated player is decorative, not a browser music player.
 
-If this checkout is already linked to the correct repository, upload only the website and documentation changes with:
+## App download
+
+The homepage's primary button and centred download section point directly to
+`Music-Crow-0.1.0-x86_64.flatpak` on the repository's `main` branch, using
+GitHub's raw download URL. The bundle and `SHA256SUMS` live in the repository
+root, outside `docs/`; the website does not store a second copy. Publish both
+root files as well as the website changes. The links become available only
+after the files reach GitHub. Upload the bundle using Git (the browser upload
+limit is lower), and keep it below GitHub's 100 MiB regular-file limit.
+
+When replacing the bundle, update its SHA-256 checksum. For a new filename or
+version, update both download buttons, the installation command and the
+version labels in `index.html`, as well as the root README. Check the download
+after deployment; a locally working page alone does not verify a published
+binary.
+
+## Publishing website changes
+
+If this checkout is already linked to the correct repository, stage the website and download files with:
 
 ```bash
-git add docs
-git commit -m "Add Music Crow website and privacy policy"
+git add docs README.md .gitattributes Music-Crow-0.1.0-x86_64.flatpak SHA256SUMS
+git commit -m "Add Music Crow Flatpak download and installation guide"
 git push origin main
 ```
 
-The root `README.md` also links to this guide; add it separately after reviewing its other existing local edits. Do not use `git add .` merely to publish the site. Only `docs` is used as the Pages publishing source, so runtime configuration and tokens must stay outside it.
+Review other application and licensing changes and include them as appropriate. Do not use `git add .` merely to publish the site. Only `docs` is used as the Pages publishing source, so user configuration and tokens must stay outside it.
 
 GitHub instructions: https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site
 

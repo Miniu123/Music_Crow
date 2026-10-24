@@ -21,7 +21,7 @@ for folder in ('core', 'ui'):
     (app / folder).mkdir(exist_ok=True)
     for source in (project / folder).glob('*.py'):
         shutil.copy2(source, app / folder / source.name)
-for name in ('main.py', 'README.md', 'requirements.txt'):
+for name in ('main.py', 'README.md', 'requirements.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.md'):
     shutil.copy2(project / name, app / name)
 shutil.copytree(project / 'assets', app / 'assets', dirs_exist_ok=True)
 if not args.with_google_client and (app / 'core/google_oauth_client.json').exists():
@@ -117,6 +117,9 @@ manifest = {
    'sources': [archive('krb5-1.22.2.tar.gz')],
    'cleanup': ['/bin', '/sbin', '/share/man', '/share/doc']},
   {'name': 'music-crow', 'buildsystem': 'simple', 'build-commands': [
+    # The application supports Polish and English. Keep native Qt dialogs in
+    # those languages without shipping unused translations in the bundle.
+    "find /app/lib/python3.13/site-packages/PyQt6/Qt6/translations -type f -name '*.qm' ! -name '*_pl.qm' ! -name '*_en.qm' -delete",
     'mkdir -p /app/share/music-crow && cp -a app-source/. /app/share/music-crow/',
     'install -Dm755 music-crow /app/bin/music-crow',
     f'install -Dm644 {app_id}.desktop /app/share/applications/{app_id}.desktop',
