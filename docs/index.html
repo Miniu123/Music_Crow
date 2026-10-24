@@ -58,27 +58,45 @@
       <p class="eyebrow">TWOJA MUZYKA. JEDEN PLIK.</p>
       <h2 id="download-title">Pobierz Music Crow.</h2>
       <p class="download-intro">Gotowa aplikacja na Windows i Linux. Pobierz, zainstaluj i ułóż swoją pierwszą kolejkę.</p>
-      <a class="button primary download-button" href="https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/Music-Crow-0.1.0-x86_64.flatpak" download="Music-Crow-0.1.0-x86_64.flatpak">Pobierz na Linux <span aria-hidden="true">↓</span></a>
-      <p class="download-meta">0.1.0 · Flatpak · Linux x86_64 (Intel / AMD)</p>
-      <div class="download-install">
-        <h3>Windows 10/11 · 64-bit</h3>
-        <p>Wersja 0.1.1 — instalator około 81 MiB, aplikacja około 236 MiB po instalacji.</p>
-        <p><a class="button primary" href="https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/Music-Crow-0.1.1-Windows-x64-Setup.exe" download="Music-Crow-0.1.1-Windows-x64-Setup.exe">Pobierz na Windows <span aria-hidden="true">↓</span></a></p>
-        <p>Otwórz pobrany instalator i postępuj zgodnie z instrukcjami. Potem uruchom Music Crow z menu Start. Nie musisz instalować Pythona ani mieć uprawnień administratora.</p>
-      </div>
-      <div class="download-install">
-        <h3>Instalacja na Linux</h3>
-        <ol>
-          <li>Zainstaluj <a href="https://flatpak.org/setup/">Flatpak dla swojej dystrybucji Linux</a>.</li>
-          <li>Pobierz aplikację i otwórz terminal w folderze z pobranym plikiem.</li>
-          <li>Wklej poniższe polecenia. Przy pierwszej instalacji mogą zostać pobrane dodatkowe składniki.</li>
-        </ol>
-        <pre><code>flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+      <div class="download-grid">
+        <article class="download-card" aria-labelledby="windows-title">
+          <p class="platform-label">WINDOWS</p>
+          <h3 id="windows-title">Zainstaluj i słuchaj.</h3>
+          <p class="platform-description">Windows 10/11 · 64-bit (Intel / AMD)</p>
+          <p class="download-meta">Wersja 0.1.1 · Instalator EXE · 81 MiB</p>
+          <a class="button primary download-button" href="https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/Music-Crow-0.1.1-Windows-x64-Setup.exe" download="Music-Crow-0.1.1-Windows-x64-Setup.exe">Pobierz na Windows <span aria-hidden="true">↓</span></a>
+          <p class="download-hint">Około 236 MiB po instalacji. Bez osobnego Pythona.</p>
+          <details class="download-install">
+            <summary>Jak zainstalować na Windows</summary>
+            <ol>
+              <li>Otwórz pobrany plik <strong>Setup.exe</strong>.</li>
+              <li>Przejdź przez instalator — uprawnienia administratora nie są wymagane.</li>
+              <li>Uruchom <strong>Music Crow</strong> z menu Start.</li>
+            </ol>
+          </details>
+        </article>
+        <article class="download-card" aria-labelledby="linux-title">
+          <p class="platform-label">LINUX</p>
+          <h3 id="linux-title">Twoja muzyka na Linux.</h3>
+          <p class="platform-description">Dystrybucje z Flatpak · x86_64 (Intel / AMD)</p>
+          <p class="download-meta">Wersja 0.1.0 · Pakiet Flatpak · 99 MiB</p>
+          <a class="button primary download-button" href="https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/Music-Crow-0.1.0-x86_64.flatpak" download="Music-Crow-0.1.0-x86_64.flatpak">Pobierz na Linux <span aria-hidden="true">↓</span></a>
+          <p class="download-hint">Python i biblioteka odtwarzania są już w paczce.</p>
+          <details class="download-install">
+            <summary>Jak zainstalować na Linux</summary>
+            <ol>
+              <li>Zainstaluj <a href="https://flatpak.org/setup/">Flatpak dla swojej dystrybucji</a>.</li>
+              <li>Otwórz terminal w folderze z pobranym plikiem i wklej:</li>
+            </ol>
+            <pre><code>flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 flatpak install --user ./Music-Crow-0.1.0-x86_64.flatpak</code></pre>
-        <p>Potem uruchom <strong>Music Crow</strong> z menu aplikacji lub wpisz:</p>
-        <pre><code>flatpak run io.github.Miniu123.MusicCrow</code></pre>
-        <p>Python i biblioteka odtwarzania są już w paczce. Do wyszukiwania i odtwarzania muzyki online potrzebujesz internetu.</p>
+            <p>Uruchom Music Crow z menu aplikacji lub wpisz:</p>
+            <pre><code>flatpak run io.github.Miniu123.MusicCrow</code></pre>
+            <p>Pierwsza instalacja może pobrać dodatkowe składniki z Flathub.</p>
+          </details>
+        </article>
       </div>
+      <p class="download-footnote">Do wyszukiwania i odtwarzania muzyki online potrzebujesz internetu.</p>
       <div class="download-links"><a href="https://github.com/Miniu123/Music_Crow#install-the-linux-app-flatpak">Pełna instrukcja ↗</a><a href="https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/SHA256SUMS">Suma kontrolna SHA-256</a><a href="license.html">Licencja i biblioteki</a></div>
     </section>
     <section class="contact-section wrap" id="kontakt"><div><h2>Porozmawiajmy.</h2><p>Autor projektu: <a href="https://github.com/Miniu123">Miniu123</a>. Pytania o aplikację lub prywatność?</p></div><a class="contact-link" href="mailto:minu3009@gmail.com">minu3009@gmail.com ↗</a></section>
