@@ -23,7 +23,8 @@ class LicenseDialog(QDialog):
         layout.addWidget(summary)
         tabs = QTabWidget()
         root = Path(__file__).resolve().parent.parent
-        for filename, title in (('LICENSE', 'MIT'), ('THIRD_PARTY_NOTICES.md', 'Biblioteki i dystrybucja')):
+        for filename, title in (('LICENSE', 'MIT'), ('THIRD_PARTY_NOTICES.md', 'Biblioteki i dystrybucja'),
+                                ('assets/fonts/Inter-LICENSE.txt', 'Czcionka Inter (OFL)')):
             view = QPlainTextEdit()
             view.setReadOnly(True)
             try:

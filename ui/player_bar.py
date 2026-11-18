@@ -2,13 +2,15 @@ from ui.motion import MotionButton
 from ui.artist_button import ArtistButton
 from core.i18n import text, set_text, language_manager
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QMenu, QSlider
-from PyQt6.QtCore import Qt, pyqtSignal, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QTimer
 from PyQt6.QtGui import QPixmap, QCursor
 
 from core.thumbnail_loader import ThumbnailManager, get_rounded_pixmap
 from ui.icons import icon
 from ui.jump_slider import JumpSlider
 from ui.animated_brand import SoundwaveVisualizer
+from core.player_state import load_volume, save_volume
+from core.theme_manager import active_palette
 
 
 class PlayerBar(QWidget):
@@ -170,7 +172,7 @@ class PlayerBar(QWidget):
         self.slider_volume = JumpSlider(Qt.Orientation.Horizontal)
         self.slider_volume.setObjectName("VolumeSlider")
         self.slider_volume.setRange(0, 100)
-        self.slider_volume.setValue(80)
+        self.slider_volume.setValue(load_volume())
         self.slider_volume.setFixedWidth(110)
         self.right_layout.addStretch()
         self.right_layout.addWidget(self.btn_volume)
@@ -205,6 +207,7 @@ class PlayerBar(QWidget):
         self.btn_shuffle.setCheckable(True)
         self.btn_repeat.setCheckable(True)
         self.btn_volume.clicked.connect(self._toggle_mute)
+        self._set_track_controls_enabled(False)
 
         # Assemble
         self.layout.addLayout(self.track_info_layout, 1)
@@ -222,6 +225,13 @@ class PlayerBar(QWidget):
         self.btn_repeat.clicked.connect(self._toggle_repeat)
         self.slider_volume.valueChanged.connect(self.player.set_volume)
         self.player.set_volume(self.slider_volume.value())
+        # Remember the volume once the user stops adjusting it.
+        self._volume_save_timer = QTimer(self)
+        self._volume_save_timer.setSingleShot(True)
+        self._volume_save_timer.setInterval(600)
+        self._volume_save_timer.timeout.connect(lambda: save_volume(self.slider_volume.value()))
+        self.slider_volume.valueChanged.connect(self._on_volume_changed)
+        self._sync_volume_icon(self.slider_volume.value())
 
         self.slider_progress.sliderPressed.connect(self._on_slider_pressed)
         self.slider_progress.sliderReleased.connect(self._on_slider_released)
@@ -239,10 +249,23 @@ class PlayerBar(QWidget):
         if self.slider_volume.value():
             self._volume_before_mute = self.slider_volume.value()
             self.slider_volume.setValue(0)
-            self.btn_volume.setIcon(icon("mute"))
         else:
-            self.slider_volume.setValue(getattr(self, "_volume_before_mute", 80))
-            self.btn_volume.setIcon(icon("volume"))
+            self.slider_volume.setValue(getattr(self, "_volume_before_mute", 80) or 80)
+
+    def _on_volume_changed(self, value):
+        self._sync_volume_icon(value)
+        self._volume_save_timer.start()
+
+    def _sync_volume_icon(self, value):
+        muted = value == 0
+        if getattr(self, "_volume_icon_muted", None) is not muted:
+            self._volume_icon_muted = muted
+            self.btn_volume.setIcon(icon("mute" if muted else "volume"))
+
+    def flush_settings(self):
+        if self._volume_save_timer.isActive():
+            self._volume_save_timer.stop()
+            save_volume(self.slider_volume.value())
 
     def _on_shuffle_changed(self, is_shuffle):
         self.btn_shuffle.setChecked(is_shuffle)
@@ -274,11 +297,18 @@ class PlayerBar(QWidget):
 
     def _update_state(self, is_playing):
         self._playing = is_playing
-        self.btn_play.setIcon(icon("pause" if is_playing else "play", "#FFFFFF"))
+        self.btn_play.setIcon(icon("pause" if is_playing else "play",
+                                   "#FFFFFF" if self.btn_play.isEnabled() else "#8A93AD"))
         self.visualizer.set_playing(is_playing)
-        has_track = bool(self._current_track_info and self._current_track_info.get("title") and self.track_title.text() != "Wybierz utwór")
-        if is_playing and has_track:
+        if is_playing and self._current_track_info.get("title"):
             self.visualizer.show()
+
+    def _set_track_controls_enabled(self, enabled):
+        """Without a track, playback controls look and behave inactive."""
+        for widget in (self.btn_play, self.btn_prev, self.btn_next, self.btn_save, self.slider_progress):
+            widget.setEnabled(enabled)
+        self.btn_play.setIcon(icon("pause" if enabled and self._playing else "play",
+                                   "#FFFFFF" if enabled else "#8A93AD"))
 
     def _update_track_info(self, info: dict):
         """Update the track info section with title, artist, and thumbnail."""
@@ -293,10 +323,10 @@ class PlayerBar(QWidget):
         self.track_title.setText(elided_title)
         self.track_title.setToolTip(title)
 
-        if title and title != "Wybierz utwór" and self._playing:
+        if title and self._playing:
             self.visualizer.show()
             self.visualizer.set_playing(True)
-        elif not title or title == "Wybierz utwór":
+        elif not title:
             self.visualizer.hide()
             self.visualizer.set_playing(False)
 
@@ -311,7 +341,7 @@ class PlayerBar(QWidget):
         # Update save button to filled heart
         self.btn_save.setText("")
         self.btn_save.setIcon(icon("heart"))
-        self.btn_save.setEnabled(True)
+        self._set_track_controls_enabled(True)
 
         self.thumbnail_manager.cancel_all()
         self.cover_label.setText("♪")
@@ -354,5 +384,5 @@ class PlayerBar(QWidget):
         self.playlist_manager.add_track(playlist_name, track)
         # Visual feedback — filled heart
         self.btn_save.setText("")
-        self.btn_save.setIcon(icon("heart", "#BEA8FF"))
+        self.btn_save.setIcon(icon("heart", active_palette()["ACCENT_LIGHT"]))
         self.btn_save.setStyleSheet("")

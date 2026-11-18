@@ -18,21 +18,6 @@ class ImportPlaylistDialog(QDialog):
 
     import_finished = pyqtSignal(str, list)  # (playlist_name, tracks)
 
-    INPUT_STYLE = """
-        QLineEdit {
-            background-color: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 12px;
-            padding: 12px 16px;
-            color: #FFFFFF;
-            font-size: 13px;
-        }
-        QLineEdit:focus {
-            border: 1px solid rgba(139,92,246,0.5);
-            background-color: rgba(255,255,255,0.1);
-        }
-    """
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
@@ -97,7 +82,7 @@ class ImportPlaylistDialog(QDialog):
 
         # Status label
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("font-size: 11px; color: #888888; background: transparent; border: none;")
+        self.status_label.setObjectName("StatusLabel")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
 
@@ -134,7 +119,7 @@ class ImportPlaylistDialog(QDialog):
 
         if not url:
             set_text(self.status_label, 'Please enter a playlist URL', 'text')
-            self.status_label.setStyleSheet("font-size: 11px; color: #FF5555; background: transparent;")
+            self._set_status_state("error")
             return
 
         if not name:
@@ -144,7 +129,7 @@ class ImportPlaylistDialog(QDialog):
         self.progress_bar.show()
         self.progress_bar.setValue(0)
         set_text(self.status_label, '⏳ Importing...', 'text')
-        self.status_label.setStyleSheet("font-size: 11px; color: #AAAAAA; background: transparent;")
+        self._set_status_state("")
 
         from PyQt6.QtWidgets import QApplication
         self._worker = PlaylistImportWorker(url, QApplication.instance())
@@ -153,6 +138,11 @@ class ImportPlaylistDialog(QDialog):
         self._worker.import_error.connect(self._on_error)
         self._worker.finished.connect(self._worker.deleteLater)
         self._worker.start()
+
+    def _set_status_state(self, state):
+        self.status_label.setProperty("state", state)
+        self.status_label.style().unpolish(self.status_label)
+        self.status_label.style().polish(self.status_label)
 
     def reject(self):
         if self._worker is not None:
@@ -173,21 +163,21 @@ class ImportPlaylistDialog(QDialog):
         self.btn_import.setEnabled(True)
         if tracks:
             set_text(self.status_label, f"✅ Imported {len(tracks)} tracks!")
-            self.status_label.setStyleSheet("font-size: 11px; color: #1DB954; background: transparent;")
+            self._set_status_state("success")
             self.import_finished.emit(name, tracks)
             # Close after a moment
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(800, self.accept)
         else:
             set_text(self.status_label, 'No tracks found in this playlist.', 'text')
-            self.status_label.setStyleSheet("font-size: 11px; color: #FF5555; background: transparent;")
+            self._set_status_state("error")
             self.progress_bar.hide()
 
     def _on_error(self, error_msg):
         self.btn_import.setEnabled(True)
         self.progress_bar.hide()
         set_text(self.status_label, f"Error: {error_msg}")
-        self.status_label.setStyleSheet("font-size: 11px; color: #FF5555; background: transparent;")
+        self._set_status_state("error")
 
 
 class Sidebar(QWidget):
@@ -214,10 +204,7 @@ class Sidebar(QWidget):
 
         # Navigation section
         nav_label = text(QLabel(""), 'TWOJA MUZYKA')
-        nav_label.setStyleSheet(
-            "font-size: 10px; font-weight: 600; color: #929BB4; "
-            "padding: 0 8px; letter-spacing: 1px; background: transparent;"
-        )
+        nav_label.setObjectName("SidebarSectionLabel")
         self.main_layout.addWidget(nav_label)
         self.main_layout.addSpacing(4)
 
@@ -237,6 +224,8 @@ class Sidebar(QWidget):
         self.btn_search.clicked.connect(lambda: self._navigate("search"))
 
         self._nav_buttons = [self.btn_home, self.btn_search]
+        self._active_page = "home"
+        self._active_playlist = ""
 
         self.main_layout.addWidget(self.btn_home)
         self.main_layout.addWidget(self.btn_search)
@@ -245,7 +234,7 @@ class Sidebar(QWidget):
         self.main_layout.addSpacing(12)
         divider = QWidget()
         divider.setFixedHeight(1)
-        divider.setStyleSheet("background-color: rgba(255,255,255,0.05);")
+        divider.setObjectName("SidebarDivider")
         self.main_layout.addWidget(divider)
         self.main_layout.addSpacing(12)
 
@@ -253,10 +242,8 @@ class Sidebar(QWidget):
         pl_header_layout = QHBoxLayout()
         pl_header_layout.setContentsMargins(8, 0, 4, 0)
         pl_label = text(QLabel(""), 'BIBLIOTEKA')
-        pl_label.setStyleSheet(
-            "font-size: 10px; font-weight: 600; color: #929BB4; "
-            "letter-spacing: 1px; background: transparent;"
-        )
+        pl_label.setObjectName("SidebarSectionLabel")
+        pl_label.setStyleSheet("padding: 0;")
         pl_header_layout.addWidget(pl_label)
         pl_header_layout.addStretch()
 
@@ -304,7 +291,7 @@ class Sidebar(QWidget):
         self.main_layout.addSpacing(8)
         divider2 = QWidget()
         divider2.setFixedHeight(1)
-        divider2.setStyleSheet("background-color: rgba(255,255,255,0.05);")
+        divider2.setObjectName("SidebarDivider")
         self.main_layout.addWidget(divider2)
         self.main_layout.addSpacing(4)
 
@@ -322,13 +309,25 @@ class Sidebar(QWidget):
             self._refresh_playlists()
 
     def _navigate(self, page: str):
-        for btn in self._nav_buttons:
-            btn.setChecked(False)
-        if page == "home":
-            self.btn_home.setChecked(True)
-        elif page == "search":
-            self.btn_search.setChecked(True)
+        self.set_active_page(page)
         self.navigate.emit(page)
+
+    def set_active_page(self, page: str, playlist: str = ""):
+        """Highlights the entry for the page shown, however it was opened."""
+        self._active_page = page
+        self._active_playlist = playlist if page == "playlist" else ""
+        self.btn_home.setChecked(page == "home")
+        self.btn_search.setChecked(page == "search")
+        for button in self._playlist_buttons():
+            button.setChecked(button.property("playlistName") == self._active_playlist)
+
+    def _playlist_buttons(self):
+        buttons = []
+        for index in range(self.playlist_list_layout.count()):
+            widget = self.playlist_list_layout.itemAt(index).widget()
+            if widget is not None and widget.property("playlistName") is not None:
+                buttons.append(widget)
+        return buttons
 
     def _show_settings(self):
         if self.theme_manager:
@@ -376,6 +375,9 @@ class Sidebar(QWidget):
             btn.setIcon(icon("playlist"))
             btn.setToolTip(pl_name)
             btn.setObjectName("PlaylistButton")
+            btn.setCheckable(True)
+            btn.setProperty("playlistName", pl_name)
+            btn.setChecked(pl_name == self._active_playlist)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda checked, n=pl_name: self._on_playlist_click(n))
             btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -387,30 +389,12 @@ class Sidebar(QWidget):
             )
 
     def _on_playlist_click(self, name: str):
-        for btn in self._nav_buttons:
-            btn.setChecked(False)
+        self.set_active_page("playlist", name)
         self.playlist_selected.emit(name)
 
     def _show_playlist_context_menu(self, pos, name: str, button: QPushButton):
         """Right-click context menu for playlist items."""
         menu = QMenu(self)
-        menu.setStyleSheet("""
-            QMenu {
-                background-color: #1A1A24;
-                border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 8px;
-                padding: 6px;
-            }
-            QMenu::item {
-                padding: 8px 20px;
-                color: #CCCCCC;
-                border-radius: 4px;
-            }
-            QMenu::item:selected {
-                background-color: rgba(139,92,246,0.2);
-                color: #FFFFFF;
-            }
-        """)
 
         rename_action = menu.addAction(tr('✏️  Rename'))
         delete_action = menu.addAction(tr('Usuń'))

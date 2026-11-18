@@ -85,8 +85,8 @@ class MusicPlayer(QObject):
 
         
         if self.theme_manager:
-            self.theme_manager.theme_changed.connect(self.apply_equalizer)
-            self.theme_manager.theme_changed.connect(self._schedule_prefetch)
+            self.theme_manager.settings_changed.connect(self.apply_equalizer)
+            self.theme_manager.settings_changed.connect(self._schedule_prefetch)
             self.apply_equalizer()
 
     def _schedule_prefetch(self, *_):

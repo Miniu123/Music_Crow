@@ -2,6 +2,7 @@
 from PyQt6.QtCore import QEasingCurve, QRectF, Qt, QVariantAnimation
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import QPushButton
+from core.theme_manager import active_palette
 
 
 class MotionButton(QPushButton):
@@ -52,7 +53,9 @@ class MotionButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(185, 171, 255, int(18 * self._hover + 24 * self._press)))
+        tint = QColor(active_palette()["ACCENT_PALE"])
+        tint.setAlpha(int(18 * self._hover + 24 * self._press))
+        painter.setBrush(tint)
         radius = self.height() / 2 if self.width() == self.height() else min(10, self.height() / 2)
         painter.drawRoundedRect(QRectF(self.rect()).adjusted(2, 2, -2, -2), radius, radius)
 

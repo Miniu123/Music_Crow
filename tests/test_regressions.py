@@ -96,7 +96,8 @@ class SearchTests(unittest.TestCase):
 
     def test_finished_search_can_be_repeated(self):
         page = SearchPage(MagicMock())
-        with patch('core.search_engine.run_extractor', return_value=subprocess.CompletedProcess([], 0, '', '')):
+        with patch('core.search_engine.run_extractor', return_value=subprocess.CompletedProcess([], 0, '', '')), \
+                patch('ui.search_page.remember_search', return_value=['music']):
             for _ in range(2):
                 page.perform_search('music')
                 page._current_worker.wait()

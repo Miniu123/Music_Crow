@@ -9,6 +9,10 @@ from PyQt6.QtGui import QPixmap, QCursor, QColor
 
 from core.search_engine import SearchWorker, PLATFORM_COLORS
 from core.thumbnail_loader import ThumbnailManager, get_rounded_pixmap
+from core.player_state import load_recent_searches, remember_search, save_recent_searches
+from core.recommendations import artist_name
+from ui.flow_layout import FlowLayout
+from ui.track_tile import same_track, set_now_playing
 
 
 class PlatformFilterBar(QWidget):
@@ -69,7 +73,7 @@ class PlatformFilterBar(QWidget):
                         background-color: {soft};
                         color: #FFFFFF;
                         border: 1px solid {color};
-                        border-radius: 10px;
+                        border-radius: 16px;
                         padding: 0px 20px;
                         font-weight: 600;
                         font-size: 12px;
@@ -95,7 +99,7 @@ class PlatformFilterBar(QWidget):
                     }}
                     QPushButton:hover {{
                         background-color: rgba(255, 255, 255, 0.08);
-                        color: #888888;
+                        color: #D0D5E4;
                         border: 1px solid {color};
                     }}
                 """)
@@ -118,18 +122,9 @@ class SearchResultCard(QFrame):
 
         platform = result.get("platform", "")
         platform_color = PLATFORM_COLORS.get(platform, "#A1A9BE")
+        badge_text = QColor(platform_color).lighter(135).name()  # pure brand red is hard to read
 
-        self.setStyleSheet(f"""
-            QFrame#SearchResultCard {{
-                background-color: rgba(255, 255, 255, 0.02);
-                border-radius: 10px;
-                border: 1px solid rgba(255, 255, 255, 0.03);
-            }}
-            QFrame#SearchResultCard:hover {{
-                background-color: rgba(255, 255, 255, 0.06);
-                border: 1px solid {platform_color};
-            }}
-        """)
+        self.setProperty("nowPlaying", False)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 8, 12, 8)
@@ -178,7 +173,7 @@ class SearchResultCard(QFrame):
         self.platform_badge.setStyleSheet(f"""
             QLabel {{
                 font-size: 10px;
-                color: {platform_color};
+                color: {badge_text};
                 background-color: rgba(255, 255, 255, 0.04);
                 border: 1px solid {platform_color};
                 border-radius: 9px;
@@ -213,27 +208,13 @@ class SearchResultCard(QFrame):
         set_text(self.btn_add, "Dodaj do playlisty", "toolTip")
         self.btn_add.setFixedSize(30, 30)
         self.btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_add.setStyleSheet(f"""
-            QPushButton {{
-                background-color: rgba(255, 255, 255, 0.05);
-                color: #888888;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 15px;
-                font-size: 16px;
-                font-weight: bold;
-                padding: 0; min-height: 30px;
-                max-height: 30px;
-                min-width: 30px;
-                max-width: 30px;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(139, 92, 246, 0.2);
-                color: #8B5CF6;
-                border: 1px solid rgba(139, 92, 246, 0.4);
-            }}
-        """)
+        self.btn_add.setObjectName("AddTrackButton")
+
         self.btn_add.clicked.connect(lambda: self.add_to_playlist.emit(self.result))
         layout.addWidget(self.btn_add)
+
+    def set_now_playing(self, value):
+        set_now_playing(self, value)
 
     def set_thumbnail(self, pixmap: QPixmap):
         rounded = get_rounded_pixmap(pixmap, 58, 58, radius=8)
@@ -289,9 +270,38 @@ class SearchPage(QWidget):
 
         # Status label
         self.status_label = text(QLabel(""), 'Wpisz tytuł lub wykonawcę i odkryj kolejne utwory.')
-        self.status_label.setStyleSheet("font-size: 12px; color: #9395AB; background: transparent;")
+        self.status_label.setObjectName("SearchStatus")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(self.status_label)
+
+        # Shown instead of results: recent searches and artists from the library
+        self.discover_panel = QWidget()
+        self.discover_panel.setObjectName("SearchDiscover")
+        discover_layout = QVBoxLayout(self.discover_panel)
+        discover_layout.setContentsMargins(0, 8, 0, 0)
+        discover_layout.setSpacing(10)
+        recent_header = QHBoxLayout()
+        self.recent_title = text(QLabel(""), 'Ostatnio wyszukiwane')
+        self.recent_title.setObjectName("DiscoverTitle")
+        self.clear_recent = text(QPushButton(""), 'Wyczyść')
+        self.clear_recent.setObjectName("LinkButton")
+        self.clear_recent.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clear_recent.clicked.connect(self._clear_recent_searches)
+        recent_header.addWidget(self.recent_title)
+        recent_header.addStretch()
+        recent_header.addWidget(self.clear_recent)
+        discover_layout.addLayout(recent_header)
+        self.recent_chips = QWidget()
+        self.recent_layout = FlowLayout(self.recent_chips)
+        discover_layout.addWidget(self.recent_chips)
+        discover_layout.addSpacing(8)
+        self.artists_title = text(QLabel(""), 'Twoi wykonawcy')
+        self.artists_title.setObjectName("DiscoverTitle")
+        discover_layout.addWidget(self.artists_title)
+        self.artist_chips = QWidget()
+        self.artist_layout = FlowLayout(self.artist_chips)
+        discover_layout.addWidget(self.artist_chips)
+        main_layout.addWidget(self.discover_panel)
 
         # Results scroll area
         self.scroll_area = QScrollArea()
@@ -307,6 +317,10 @@ class SearchPage(QWidget):
 
         self.scroll_area.setWidget(self.results_widget)
         main_layout.addWidget(self.scroll_area, 1)
+        self.search_input.textChanged.connect(lambda value: self._update_discover() if not value.strip() else None)
+        if hasattr(player, "track_started"):
+            player.track_started.connect(self._mark_now_playing)
+        self._update_discover()
 
     def perform_search(self, query: str):
         self.search_input.setText(query)
@@ -318,8 +332,10 @@ class SearchPage(QWidget):
             return
 
         self._clear_results()
+        self._recent_searches = remember_search(query)
+        self.discover_panel.hide()
         set_text(self.status_label, 'Szukam utworów…', 'text')
-        self.status_label.setStyleSheet("font-size: 12px; color: #AAAAAA; background: transparent;")
+        self._set_status_state("")
 
         platforms = self.filter_bar.get_active_platforms()
 
@@ -359,11 +375,11 @@ class SearchPage(QWidget):
 
         if not results:
             set_text(self.status_label, 'Brak wyników. Spróbuj innego tytułu lub wykonawcy.', 'text')
-            self.status_label.setStyleSheet("font-size: 12px; color: #A1A9BE; background: transparent;")
+            self._set_status_state("")
             return
 
         set_text(self.status_label, f"Wyniki: {len(results)}")
-        self.status_label.setStyleSheet("font-size: 12px; color: #9395AB; background: transparent;")
+        self._set_status_state("")
 
         for result in results:
             card = SearchResultCard(result)
@@ -373,6 +389,7 @@ class SearchPage(QWidget):
             self._result_cards.append(card)
 
             self.results_layout.insertWidget(self.results_layout.count() - 1, card)
+            card.set_now_playing(same_track(result, getattr(self.player, "_current_track", {})))
 
             thumb_url = result.get("thumbnail_url", "")
             if thumb_url:
@@ -385,7 +402,74 @@ class SearchPage(QWidget):
 
     def _on_error(self, error_msg: str):
         set_text(self.status_label, f"Error: {error_msg}")
-        self.status_label.setStyleSheet("font-size: 12px; color: #FF5555; background: transparent;")
+        self._set_status_state("error")
+
+    def _chip(self, label, on_click):
+        chip = QPushButton(label if len(label) <= 32 else label[:31] + "…")
+        chip.setObjectName("SuggestionChip")
+        chip.setToolTip(label)
+        chip.setCursor(Qt.CursorShape.PointingHandCursor)
+        chip.clicked.connect(on_click)
+        return chip
+
+    @staticmethod
+    def _fill(layout, widgets):
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        for widget in widgets:
+            layout.addWidget(widget)
+
+    def library_artists(self, limit=10):
+        """Most frequent artists across the user's playlists."""
+        counts = {}
+        manager = self.playlist_manager
+        if manager is None:
+            return []
+        for name in manager.list_playlists():
+            for track in manager.get_tracks(name):
+                artist = artist_name(track)
+                if artist:
+                    key = artist.casefold()
+                    total, label = counts.get(key, (0, artist))
+                    counts[key] = (total + 1, label)
+        ranked = sorted(counts.values(), key=lambda item: (-item[0], item[1].casefold()))
+        return [label for _, label in ranked[:limit]]
+
+    def _update_discover(self):
+        if self._result_cards or (self.search_input.text().strip() and self._current_worker):
+            return
+        recent = getattr(self, "_recent_searches", None)
+        if recent is None:
+            recent = self._recent_searches = load_recent_searches()
+        artists = self.library_artists()
+        self._fill(self.recent_layout, [self._chip(q, lambda _=False, q=q: self.perform_search(q)) for q in recent])
+        self._fill(self.artist_layout, [self._chip("♪  " + a, lambda _=False, a=a: self.perform_search(a)) for a in artists])
+        for widget in (self.recent_title, self.clear_recent, self.recent_chips):
+            widget.setVisible(bool(recent))
+        self.artists_title.setVisible(bool(artists))
+        self.artist_chips.setVisible(bool(artists))
+        self.discover_panel.setVisible(bool(recent or artists))
+
+    def _clear_recent_searches(self):
+        self._recent_searches = []
+        save_recent_searches([])
+        self._update_discover()
+
+    def showEvent(self, event):
+        self._update_discover()
+        super().showEvent(event)
+
+    def _mark_now_playing(self, *_):
+        current = getattr(self.player, "_current_track", {})
+        for card in self._result_cards:
+            card.set_now_playing(same_track(card.result, current))
+
+    def _set_status_state(self, state: str):
+        self.status_label.setProperty("state", state)
+        self.status_label.style().unpolish(self.status_label)
+        self.status_label.style().polish(self.status_label)
 
     def _on_result_clicked(self, result: dict):
         url = result.get("url", "")

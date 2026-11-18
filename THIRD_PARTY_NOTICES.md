@@ -34,6 +34,7 @@ upstream project and the installed package's license files.
 | yt-dlp | Unlicense for the project; bundled and optional dependencies have separate terms | https://github.com/yt-dlp/yt-dlp#license |
 | google-auth-oauthlib | Apache-2.0 | https://github.com/googleapis/google-auth-library-python-oauthlib |
 | Requests | Apache-2.0 | https://github.com/psf/requests |
+| Inter typeface 4.1 (Regular, Medium, SemiBold, Bold) | SIL Open Font License 1.1; bundled unmodified in `assets/fonts/`, full text in `assets/fonts/Inter-LICENSE.txt` | https://github.com/rsms/inter |
 
 The Flatpak also includes or uses components such as Python, FFmpeg, Lua,
 libass, libplacebo, Deno, PyGObject, dbus-python, Kerberos and the Freedesktop

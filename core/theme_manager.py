@@ -1,6 +1,7 @@
 import json
-import os
+import re
 from pathlib import Path
+from functools import lru_cache
 from core.app_paths import config_dir
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QColor
@@ -48,21 +49,104 @@ PRESETS = {
     }
 }
 
+SUCCESS_COLOR = "#4ADE80"
+DANGER_COLOR = "#F4657E"
+ACCENT_ALPHAS = (5, 10, 14, 15, 20, 25, 30, 35, 40)
+_RGBA = re.compile(r"rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)")
+_active_manager = None
+
+
+def parse_color(value, fallback="#10131F") -> QColor:
+    """Parses #hex and rgb()/rgba() strings, which QColor alone cannot read."""
+    text = str(value or "").strip()
+    match = _RGBA.fullmatch(text)
+    if match:
+        red, green, blue = (max(0, min(255, int(part))) for part in match.groups()[:3])
+        alpha = float(match.group(4)) if match.group(4) is not None else 1.0
+        color = QColor(red, green, blue)
+        color.setAlphaF(max(0.0, min(1.0, alpha)))
+        return color
+    color = QColor(text)
+    return color if color.isValid() else QColor(fallback)
+
+
+def _tone(accent: QColor, lightness: float, saturation_scale: float = 1.0) -> str:
+    hue, saturation, _, _ = accent.getHslF()
+    hue = max(0.0, hue)  # achromatic colours report -1
+    return QColor.fromHslF(hue, min(1.0, saturation * saturation_scale), lightness).name()
+
+
+def derive_palette(accent_value) -> dict:
+    """Every accent-dependent colour used by the stylesheet and custom painting."""
+    return dict(_derive_palette(str(accent_value or "")))
+
+
+@lru_cache(maxsize=16)
+def _derive_palette(accent_value: str) -> dict:
+    accent = parse_color(accent_value, DEFAULT_THEME["ACCENT_COLOR"])
+    hue, saturation, lightness, _ = accent.getHslF()
+    palette = {
+        "ACCENT_COLOR": accent.name(),
+        "ACCENT_HOVER": QColor.fromHslF(max(0.0, hue), saturation, max(0.0, lightness - 0.1)).name(),
+        "ACCENT_LIGHT": _tone(accent, 0.82),
+        "ACCENT_PALE": _tone(accent, 0.92),
+        "ACCENT_MUTED": _tone(accent, 0.72, 0.3),
+        "SUCCESS_COLOR": SUCCESS_COLOR,
+        "DANGER_COLOR": DANGER_COLOR,
+    }
+    rgb = f"{accent.red()}, {accent.green()}, {accent.blue()}"
+    for alpha in ACCENT_ALPHAS:
+        palette[f"ACCENT_{alpha:02d}"] = f"rgba({rgb}, {alpha / 100:.2f})"
+    return palette
+
+
+def active_theme_manager():
+    return _active_manager
+
+
+def active_palette() -> dict:
+    """The palette of the running app's theme, for widgets that paint themselves."""
+    manager = _active_manager
+    accent = manager.current_theme.get("ACCENT_COLOR") if manager else DEFAULT_THEME["ACCENT_COLOR"]
+    return derive_palette(accent)
+
+
+def active_accent() -> QColor:
+    manager = _active_manager
+    value = manager.current_theme.get("ACCENT_COLOR") if manager else DEFAULT_THEME["ACCENT_COLOR"]
+    return parse_color(value, DEFAULT_THEME["ACCENT_COLOR"])
+
+
+def with_alpha(color: QColor, alpha: int) -> QColor:
+    result = QColor(color)
+    result.setAlpha(max(0, min(255, int(alpha))))
+    return result
+
+
+def connect_theme_changed(slot):
+    """Connects a widget refresh to theme changes when an app theme exists."""
+    if _active_manager is not None:
+        _active_manager.theme_changed.connect(slot)
+
+
 class ThemeManager(QObject):
-    theme_changed = pyqtSignal()
+    theme_changed = pyqtSignal()      # Colours changed: restyle the interface
+    settings_changed = pyqtSignal()   # Audio/playback preferences changed
     settings_saved = pyqtSignal()
 
     def __init__(self):
+        global _active_manager
         super().__init__()
         self.config_dir = config_dir()
         self.config_path = self.config_dir / "theme.json"
         self.current_theme = dict(DEFAULT_THEME)
         self.load_theme()
+        _active_manager = self
 
     def load_theme(self):
         if self.config_path.exists():
             try:
-                with open(self.config_path, "r") as f:
+                with open(self.config_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     self.current_theme.update(data)
             except Exception as e:
@@ -89,6 +173,17 @@ class ThemeManager(QObject):
         self.save_theme()
         self.theme_changed.emit()
 
+    def set_setting(self, key: str, value):
+        """Stores a non-visual preference without restyling the whole interface."""
+        if self.current_theme.get(key) == value:
+            return
+        self.current_theme[key] = value
+        self.save_theme()
+        self.settings_changed.emit()
+
+    def palette(self) -> dict:
+        return derive_palette(self.current_theme.get("ACCENT_COLOR"))
+
     def get_qss(self, base_qss_path: str) -> str:
         """Loads QSS and replaces {{VARS}} with current theme colors + generated derivations."""
         try:
@@ -97,27 +192,7 @@ class ThemeManager(QObject):
         except FileNotFoundError:
             return ""
 
-        # Base replacements
-        for key, value in self.current_theme.items():
-            qss = qss.replace("{{" + key + "}}", str(value))
-
-        # Derived accent colors
-        accent = QColor(self.current_theme["ACCENT_COLOR"])
-        
-        # Hover (slightly darker, e.g. -10% lightness)
-        h, s, l, a = accent.getHslF()
-        hover_color = QColor.fromHslF(h, s, max(0, l - 0.1), a)
-        qss = qss.replace("{{ACCENT_HOVER}}", hover_color.name())
-        
-        # Light / translucent variants
-        qss = qss.replace("{{ACCENT_05}}", f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 0.05)")
-        qss = qss.replace("{{ACCENT_14}}", f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 0.14)")
-        qss = qss.replace("{{ACCENT_15}}", f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 0.15)")
-        qss = qss.replace("{{ACCENT_20}}", f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 0.20)")
-        qss = qss.replace("{{ACCENT_25}}", f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 0.25)")
-        qss = qss.replace("{{ACCENT_30}}", f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 0.30)")
-        qss = qss.replace("{{ACCENT_35}}", f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 0.35)")
-        qss = qss.replace("{{ACCENT_40}}", f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 0.40)")
-        qss = qss.replace("{{ACCENT_10}}", f"rgba({accent.red()}, {accent.green()}, {accent.blue()}, 0.10)")
-
-        return qss
+        values = {key: value for key, value in self.current_theme.items() if isinstance(value, str)}
+        values.update(self.palette())
+        values["ASSET_DIR"] = str(Path(base_qss_path).resolve().parent).replace("\\", "/")
+        return re.sub(r"\{\{([A-Z0-9_]+)\}\}", lambda match: str(values.get(match.group(1), match.group(0))), qss)

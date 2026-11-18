@@ -7,11 +7,12 @@ from PyQt6.QtWidgets import (
     QFrame, QSizePolicy, QPushButton, QInputDialog, QFileDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QColor, QPixmap
 
 from ui.icons import icon
 from core.search_engine import PLATFORM_COLORS
 from core.thumbnail_loader import ThumbnailManager, get_rounded_pixmap
+from ui.track_tile import same_track, set_now_playing
 
 
 class PlaylistTrackCard(QFrame):
@@ -34,18 +35,9 @@ class PlaylistTrackCard(QFrame):
 
         platform = track.get("platform", "")
         platform_color = PLATFORM_COLORS.get(platform, "#A1A9BE")
+        badge_text = QColor(platform_color).lighter(135).name()  # pure brand red is hard to read
 
-        self.setStyleSheet(f"""
-            QFrame#PlaylistTrackCard {{
-                background-color: rgba(255, 255, 255, 0.02);
-                border-radius: 8px;
-                border: 1px solid rgba(255, 255, 255, 0.03);
-            }}
-            QFrame#PlaylistTrackCard:hover {{
-                background-color: rgba(255, 255, 255, 0.05);
-                border: 1px solid {platform_color};
-            }}
-        """)
+        self.setProperty("nowPlaying", False)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 6, 12, 6)
@@ -53,9 +45,10 @@ class PlaylistTrackCard(QFrame):
 
         # Index number
         idx_label = QLabel(f"{index + 1}")
+        idx_label.setObjectName("TrackIndex")
         idx_label.setFixedWidth(24)
         idx_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        idx_label.setStyleSheet("font-size: 12px; color: #969EB6; background: transparent; border: none;")
+        self.idx_label = idx_label
         layout.addWidget(idx_label)
 
         # Thumbnail
@@ -84,7 +77,7 @@ class PlaylistTrackCard(QFrame):
 
         badge = QLabel(platform)
         badge.setStyleSheet(f"""
-            font-size: 9px; color: {platform_color};
+            font-size: 9px; color: {badge_text};
             background-color: rgba(255,255,255,0.04);
             border: 1px solid {platform_color};
             border-radius: 7px; padding: 1px 6px;
@@ -112,25 +105,16 @@ class PlaylistTrackCard(QFrame):
 
         # Remove button
         btn_remove = QPushButton("✕")
-        btn_remove.setObjectName("IconButton")
+        btn_remove.setObjectName("RemoveTrackButton")
         btn_remove.setFixedSize(26, 26)
         btn_remove.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_remove.setStyleSheet("""
-            QPushButton {
-                background: rgba(255,255,255,0.04);
-                color: #969EB6;
-                border: 1px solid rgba(255,255,255,0.06);
-                border-radius: 13px;
-                font-size: 11px;
-            }
-            QPushButton:hover {
-                background: rgba(255,80,80,0.15);
-                color: #FF5555;
-                border: 1px solid rgba(255,80,80,0.3);
-            }
-        """)
         btn_remove.clicked.connect(lambda: self.remove_clicked.emit(self.index))
         layout.addWidget(btn_remove)
+
+    def set_now_playing(self, value):
+        if set_now_playing(self, value):
+            self.idx_label.setText("▶" if value else f"{self.index + 1}")
+            set_now_playing(self.idx_label, value)
 
     def set_thumbnail(self, pixmap: QPixmap):
         rounded = get_rounded_pixmap(pixmap, 50, 50, radius=6)
@@ -147,23 +131,6 @@ class PlaylistTrackCard(QFrame):
     def contextMenuEvent(self, event):
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self)
-        menu.setStyleSheet("""
-            QMenu {
-                background-color: #1A1A24;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 8px;
-                padding: 6px;
-            }
-            QMenu::item {
-                padding: 8px 20px;
-                color: #CCCCCC;
-                border-radius: 4px;
-            }
-            QMenu::item:selected {
-                background-color: rgba(139, 92, 246, 0.2);
-                color: #FFFFFF;
-            }
-        """)
         action_play_next = menu.addAction(tr('▶️ Play Next'))
         action_play_next.triggered.connect(lambda: self.play_next_clicked.emit(self.track))
         action_queue = menu.addAction(tr('➕ Add to Queue'))
@@ -182,6 +149,8 @@ class PlaylistPage(QWidget):
         self.player = player
         self.playlist_manager = playlist_manager
         self.thumbnail_manager = ThumbnailManager()
+        if hasattr(player, "track_started"):
+            player.track_started.connect(self._mark_now_playing)
         self._current_playlist = ""
         self._cards: list[PlaylistTrackCard] = []
         self.setObjectName("PlaylistPage")
@@ -203,19 +172,8 @@ class PlaylistPage(QWidget):
         self.cover_label.setCursor(Qt.CursorShape.PointingHandCursor)
         set_text(self.cover_label, 'Click to set cover image', 'toolTip')
         self.cover_label.setText("🎵")
-        self.cover_label.setStyleSheet("""
-            QLabel {
-                background-color: rgba(255, 255, 255, 0.04);
-                border: 2px dashed rgba(255, 255, 255, 0.08);
-                border-radius: 14px;
-                font-size: 40px;
-                color: #8993AE;
-            }
-            QLabel:hover {
-                border: 2px dashed rgba(139, 92, 246, 0.3);
-                background-color: rgba(139, 92, 246, 0.04);
-            }
-        """)
+        self.cover_label.setObjectName("PlaylistCover")
+        self._set_cover_state(False)
         self.cover_label.mousePressEvent = self._on_cover_click
         header_layout.addWidget(self.cover_label)
 
@@ -324,6 +282,11 @@ class PlaylistPage(QWidget):
         self._load_cover()
         self._refresh()
 
+    def _set_cover_state(self, has_cover: bool):
+        self.cover_label.setProperty("hasCover", has_cover)
+        self.cover_label.style().unpolish(self.cover_label)
+        self.cover_label.style().polish(self.cover_label)
+
     def _load_cover(self):
         """Load and display the playlist cover image."""
         cover_path = self.playlist_manager.get_cover_image(self._current_playlist)
@@ -331,32 +294,11 @@ class PlaylistPage(QWidget):
             pixmap = QPixmap(cover_path)
             rounded = get_rounded_pixmap(pixmap, 140, 140, radius=14)
             self.cover_label.setPixmap(rounded)
-            self.cover_label.setStyleSheet("""
-                QLabel {
-                    background-color: transparent;
-                    border: none;
-                    border-radius: 14px;
-                }
-                QLabel:hover {
-                    border: 2px solid rgba(139, 92, 246, 0.4);
-                }
-            """)
+            self._set_cover_state(True)
         else:
             self.cover_label.setPixmap(QPixmap())
             self.cover_label.setText("🎵")
-            self.cover_label.setStyleSheet("""
-                QLabel {
-                    background-color: rgba(255, 255, 255, 0.04);
-                    border: 2px dashed rgba(255, 255, 255, 0.08);
-                    border-radius: 14px;
-                    font-size: 40px;
-                    color: #8993AE;
-                }
-                QLabel:hover {
-                    border: 2px dashed rgba(139, 92, 246, 0.3);
-                    background-color: rgba(139, 92, 246, 0.04);
-                }
-            """)
+            self._set_cover_state(False)
 
     def _on_cover_click(self, event):
         """Open file dialog to select a cover image."""
@@ -426,6 +368,12 @@ class PlaylistPage(QWidget):
 
             if thumb_url:
                 self.thumbnail_manager.load(thumb_url, on_thumb_loaded)
+        self._mark_now_playing()
+
+    def _mark_now_playing(self, *_):
+        current = getattr(self.player, "_current_track", {}) or {}
+        for card in self._cards:
+            card.set_now_playing(same_track(card.track, current))
 
     def _on_play(self, track: dict):
         tracks = self.playlist_manager.get_tracks(self._current_playlist)

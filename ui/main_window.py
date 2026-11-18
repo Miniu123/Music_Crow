@@ -1,7 +1,7 @@
 from core.i18n import language_manager, tr
 import os
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon, QKeyEvent
 from ui.custom_titlebar import CustomTitleBar
 from ui.sidebar import Sidebar
@@ -74,6 +74,12 @@ class MainWindow(QMainWindow):
         # Connect sidebar navigation
         self.sidebar.navigate.connect(self._on_navigate)
         self.sidebar.playlist_selected.connect(self._on_playlist_selected)
+        self.main_content.page_changed.connect(self.sidebar.set_active_page)
+        self.main_content.page_changed.connect(self.title_bar.set_page)
+        if self.playlist_manager:
+            # Renaming re-creates the sidebar entries before the page knows the new name.
+            self.playlist_manager.playlist_created.connect(
+                lambda _: QTimer.singleShot(0, self._sync_sidebar_selection))
 
         self.middle_layout.addWidget(self.sidebar)
         self.middle_layout.addWidget(self.main_content)
@@ -88,6 +94,9 @@ class MainWindow(QMainWindow):
 
         # Grab keyboard focus for multimedia keys
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def _sync_sidebar_selection(self):
+        self.sidebar.set_active_page(*self.main_content.current_page())
 
     def _on_navigate(self, page: str):
         if page == "home":
@@ -122,14 +131,7 @@ class MainWindow(QMainWindow):
             self.player.set_volume(new_vol)
             self.player_bar.slider_volume.setValue(new_vol)
         elif key == Qt.Key.Key_VolumeMute:
-            if self.player._master_volume > 0:
-                self._volume_before_mute = self.player._master_volume
-                self.player.set_volume(0)
-                self.player_bar.slider_volume.setValue(0)
-            else:
-                restore = getattr(self, '_volume_before_mute', 80)
-                self.player.set_volume(restore)
-                self.player_bar.slider_volume.setValue(restore)
+            self.player_bar._toggle_mute()
         elif key == Qt.Key.Key_Space:
             # Space bar to toggle play/pause (only if search input isn't focused)
             focused = self.focusWidget()
@@ -183,6 +185,7 @@ class MainWindow(QMainWindow):
             self.theme_manager.load_theme()
             language_manager.configure(self.theme_manager)
             self.theme_manager.theme_changed.emit()
+            self.theme_manager.settings_changed.emit()
         home = self.main_content.home_page
         history = home.history
         history.entries = json.loads(history.path.read_text()) if history.path.exists() else {}
@@ -194,6 +197,7 @@ class MainWindow(QMainWindow):
             page.load_playlist(page._current_playlist)
 
     def closeEvent(self, event):
+        self.player_bar.flush_settings()
         self.sync_manager.shutdown()
         self.main_content.playback_recommendations.shutdown()
         self.main_content.home_page.shutdown()

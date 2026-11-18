@@ -1,6 +1,10 @@
 import threading
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, Qt
 
+# Must match the installed .desktop file so desktops can show the app icon.
+DESKTOP_ENTRY = "io.github.Miniu123.MusicCrow"
+
+
 class MprisIntegration(QObject):
     command_requested = pyqtSignal(str)
 
@@ -24,12 +28,14 @@ class MprisIntegration(QObject):
     def _dispatch(self, command):
         actions = {"toggle": self.player.toggle_pause,
                    "next": self.player.next_track,
-                   "previous": self.player.prev_track}
+                   "previous": self.player.prev_track,
+                   "stop": self.player.stop}
         actions[command]()
 
     def _init_mpris(self):
         try:
             import dbus
+            import dbus.exceptions
             import dbus.service
             from dbus.mainloop.glib import DBusGMainLoop
             from gi.repository import GLib
@@ -37,6 +43,9 @@ class MprisIntegration(QObject):
             DBusGMainLoop(set_as_default=True)
             self.bus = dbus.SessionBus()
             
+            ROOT_IFACE = "org.mpris.MediaPlayer2"
+            PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
+
             class MprisPlayer(dbus.service.Object):
                 def __init__(self, bus, player_ref, commands):
                     self.player_ref = player_ref
@@ -46,49 +55,75 @@ class MprisIntegration(QObject):
                     
                     self.PlaybackStatus = "Stopped"
                     self.Metadata = dbus.Dictionary({}, signature='sv')
-                    
+
+                def _position(self):
+                    try:
+                        seconds = self.player_ref.mpv.time_pos or 0
+                    except Exception:
+                        seconds = 0
+                    return dbus.Int64(int(seconds * 1_000_000))
+
+                def _properties(self, interface):
+                    """All MPRIS properties of an interface, as D-Bus typed values."""
+                    if interface == ROOT_IFACE:
+                        return {
+                            "CanQuit": dbus.Boolean(False),
+                            "CanRaise": dbus.Boolean(False),
+                            "HasTrackList": dbus.Boolean(False),
+                            "Identity": dbus.String("Music Crow"),
+                            "DesktopEntry": dbus.String(DESKTOP_ENTRY),
+                            "SupportedUriSchemes": dbus.Array([], signature='s'),
+                            "SupportedMimeTypes": dbus.Array([], signature='s'),
+                        }
+                    if interface == PLAYER_IFACE:
+                        volume = getattr(self.player_ref, "_master_volume", 100) / 100.0
+                        return {
+                            "PlaybackStatus": dbus.String(self.PlaybackStatus),
+                            "Metadata": dbus.Dictionary(self.Metadata, signature='sv'),
+                            "Rate": dbus.Double(1.0),
+                            "MinimumRate": dbus.Double(1.0),
+                            "MaximumRate": dbus.Double(1.0),
+                            "Volume": dbus.Double(volume),
+                            "Position": self._position(),
+                            "CanControl": dbus.Boolean(True),
+                            "CanPause": dbus.Boolean(True),
+                            "CanPlay": dbus.Boolean(True),
+                            "CanGoNext": dbus.Boolean(True),
+                            "CanGoPrevious": dbus.Boolean(True),
+                            "CanSeek": dbus.Boolean(False),
+                        }
+                    return None
+
                 @dbus.service.method("org.freedesktop.DBus.Properties", in_signature='ss', out_signature='v')
                 def Get(self, interface, prop):
-                    if interface == "org.mpris.MediaPlayer2.Player":
-                        if prop == "PlaybackStatus":
-                            return dbus.String(self.PlaybackStatus, variant_level=1)
-                        elif prop == "Metadata":
-                            return dbus.Dictionary(self.Metadata, signature='sv', variant_level=1)
-                        elif prop == "CanControl":
-                            return dbus.Boolean(True, variant_level=1)
-                        elif prop == "CanPause":
-                            return dbus.Boolean(True, variant_level=1)
-                        elif prop == "CanPlay":
-                            return dbus.Boolean(True, variant_level=1)
-                        elif prop == "CanGoNext":
-                            return dbus.Boolean(True, variant_level=1)
-                        elif prop == "CanGoPrevious":
-                            return dbus.Boolean(True, variant_level=1)
-                    elif interface == "org.mpris.MediaPlayer2":
-                        if prop == "DesktopEntry":
-                            return dbus.String("music-crow", variant_level=1)
-                        elif prop == "Identity":
-                            return dbus.String("Music Crow", variant_level=1)
-                    return None
-                    
+                    properties = self._properties(interface)
+                    if properties is None or prop not in properties:
+                        raise dbus.exceptions.DBusException(
+                            f"No such property {interface}.{prop}",
+                            name="org.freedesktop.DBus.Error.InvalidArgs")
+                    return properties[prop]
+
                 @dbus.service.method("org.freedesktop.DBus.Properties", in_signature='s', out_signature='a{sv}')
                 def GetAll(self, interface):
-                    if interface == "org.mpris.MediaPlayer2.Player":
-                        return dbus.Dictionary({
-                            "PlaybackStatus": dbus.String(self.PlaybackStatus, variant_level=0),
-                            "Metadata": dbus.Dictionary(self.Metadata, signature='sv', variant_level=0),
-                            "CanControl": dbus.Boolean(True, variant_level=0),
-                            "CanPause": dbus.Boolean(True, variant_level=0),
-                            "CanPlay": dbus.Boolean(True, variant_level=0),
-                            "CanGoNext": dbus.Boolean(True, variant_level=0),
-                            "CanGoPrevious": dbus.Boolean(True, variant_level=0)
-                        }, signature='sv')
-                    elif interface == "org.mpris.MediaPlayer2":
-                        return dbus.Dictionary({
-                            "DesktopEntry": dbus.String("music-crow", variant_level=0),
-                            "Identity": dbus.String("Music Crow", variant_level=0)
-                        }, signature='sv')
-                    return dbus.Dictionary({}, signature='sv')
+                    return dbus.Dictionary(self._properties(interface) or {}, signature='sv')
+
+                @dbus.service.method("org.freedesktop.DBus.Properties", in_signature='ssv')
+                def Set(self, interface, prop, value):
+                    raise dbus.exceptions.DBusException(
+                        f"Property {interface}.{prop} is read-only",
+                        name="org.freedesktop.DBus.Error.PropertyReadOnly")
+
+                @dbus.service.method(ROOT_IFACE)
+                def Raise(self):
+                    pass
+
+                @dbus.service.method(ROOT_IFACE)
+                def Quit(self):
+                    pass
+
+                @dbus.service.method(PLAYER_IFACE)
+                def Stop(self):
+                    self.commands.emit("stop")
 
                 @dbus.service.method("org.mpris.MediaPlayer2.Player")
                 def PlayPause(self):

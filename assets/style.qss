@@ -15,7 +15,7 @@ QPushButton:hover { color: white; background: rgba(190,200,235,0.12); border-col
 QPushButton:pressed { background: {{ACCENT_25}}; }
 QPushButton:focus { border-color: {{ACCENT_COLOR}}; }
 QPushButton:disabled { color: #73809C; background: rgba(190,200,235,0.025); border-color: rgba(190,200,235,0.06); }
-QPushButton:checked { color: #F2EDFF; background: {{ACCENT_20}}; border-color: {{ACCENT_40}}; }
+QPushButton:checked { color: {{ACCENT_PALE}}; background: {{ACCENT_20}}; border-color: {{ACCENT_40}}; }
 #PrimaryButton, #HeroButton {
     color: white; background: {{ACCENT_COLOR}}; border: 1px solid {{ACCENT_COLOR}};
     border-radius: 12px; padding: 9px 20px; font-weight: 600;
@@ -23,6 +23,7 @@ QPushButton:checked { color: #F2EDFF; background: {{ACCENT_20}}; border-color: {
 #PrimaryButton:hover, #HeroButton:hover { background: {{ACCENT_HOVER}}; }
 #SecondaryButton { padding: 8px 16px; border-radius: 12px; }
 #DangerButton { color: #F2ADB9; background: rgba(244,101,126,0.07); border-color: rgba(244,101,126,0.2); }
+#DangerButton:hover { border-color: {{DANGER_COLOR}}; }
 #DangerButton:hover { color: #FFE2E8; background: rgba(244,101,126,0.17); }
 #IconButton, #DialogClose { padding: 0; border-radius: 9px; }
 #DialogClose:hover { color: white; background: #AC405C; }
@@ -46,7 +47,10 @@ QLineEdit:hover { border-color: rgba(190,200,235,0.3); }
 QLineEdit:focus { border-color: {{ACCENT_COLOR}}; background: {{ACCENT_05}}; }
 #HomeSearchInput, #SearchPageInput { border-radius: 14px; padding: 12px 18px; font-size: 14px; }
 #TitleBar { background: rgba(5,8,16,0.12); }
-#TitleBar QLabel { color: #7E8AA7; font-size: 10px; font-weight: 600; padding-left: 10px; }
+#TitleBar QLabel { color: #7E8AA7; font-size: 10px; font-weight: 600; }
+#TitleBar #TitleApp { padding-left: 10px; letter-spacing: 1px; }
+#TitleBar #TitleSeparator { color: #4D5671; }
+#TitleBar #TitlePage { color: #B4BCD2; font-size: 11px; }
 #TitleBar QPushButton { border: none; border-radius: 9px; background: transparent; padding: 0; color: #A8B1C8; }
 #TitleBar QPushButton:hover { background: rgba(190,200,235,0.1); color: white; }
 #TitleBar #CloseButton:hover { background: #AC405C; }
@@ -59,22 +63,23 @@ QLineEdit:focus { border-color: {{ACCENT_COLOR}}; background: {{ACCENT_05}}; }
 #NavButton:checked { color: white; background: {{ACCENT_15}}; border-color: {{ACCENT_30}}; }
 #PlaylistButton { text-align: left; padding: 9px 12px; margin: 2px 3px; border: none; background: transparent; color: #A9B3CD; border-radius: 9px; font-size: 12px; }
 #PlaylistButton:hover { background: rgba(190,200,235,0.07); color: white; }
+#PlaylistButton:checked { color: white; background: {{ACCENT_15}}; }
 #MainContent, #HomePage, #SearchPage, #PlaylistPage, #QueuePage, #TracksSurface, #QueueTracksContent, #HomeScrollContent { background: transparent; border: none; }
 #HomeSubtitle, #HeroDescription { color: #A9B3CD; font-size: 12px; }
 #HomeHero { background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {{ACCENT_30}},stop:0.65 {{ACCENT_10}},stop:1 {{CENTRAL_BG_END}}); border: 1px solid {{ACCENT_25}}; border-radius: 18px; }
-#HeroEyebrow { color: #D5CAFF; font-size: 10px; font-weight: 600; }
+#HeroEyebrow { color: {{ACCENT_LIGHT}}; font-size: 10px; font-weight: 600; }
 #HeroTitle { color: #FBFAFF; font-size: 34px; font-weight: 700; }
 #LibraryTitle, #QueuePanelTitle { color: #EFF0FF; font-size: 19px; font-weight: 600; }
-#RecommendationRefresh { color: #DBD2FF; background: {{ACCENT_10}}; border: 1px solid {{ACCENT_25}}; padding: 7px 13px; border-radius: 10px; }
+#RecommendationRefresh { color: {{ACCENT_PALE}}; background: {{ACCENT_10}}; border: 1px solid {{ACCENT_25}}; padding: 7px 13px; border-radius: 10px; }
 #RecommendationRefresh:hover { background: {{ACCENT_25}}; }
-#RecommendationReason { color: #AAA4C8; font-size: 11px; padding-left: 4px; }
-#QueuePageTitle { font-size: 25px; font-weight: 700; }
+#RecommendationReason { color: {{ACCENT_MUTED}}; font-size: 11px; padding-left: 4px; }
+#QueuePageTitle { font-size: 30px; font-weight: 700; }
 #QueuePanel { background: rgba(160,180,225,0.03); border: 1px solid rgba(190,200,235,0.12); border-radius: 15px; }
 #QueuePanelSubtitle, #QueueHint { color: #A3AEC9; font-size: 12px; background: transparent; border: none; }
 #QueueHint { padding: 8px; }
 #QueueDropTarget { background: rgba(190,200,235,0.02); border: 1px dashed rgba(190,200,235,0.16); border-radius: 11px; }
 #QueueDropTarget[dragOver="true"] { border: 1px solid {{ACCENT_COLOR}}; background: {{ACCENT_15}}; }
-#QueuePlayNext { color: #E6DEFF; background: {{ACCENT_15}}; border: 1px solid {{ACCENT_25}}; border-radius: 8px; padding: 4px 9px; font-size: 11px; }
+#QueuePlayNext { color: {{ACCENT_PALE}}; background: {{ACCENT_15}}; border: 1px solid {{ACCENT_25}}; border-radius: 8px; padding: 4px 9px; font-size: 11px; }
 #QueuePlayNext:hover { background: {{ACCENT_30}}; }
 QSplitter::handle:horizontal { width: 12px; background: transparent; }
 QScrollArea { background: transparent; border: none; }
@@ -86,11 +91,11 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
 #PlayerBar { background: {{PLAYER_BAR_BG}}; border-top: 1px solid {{ACCENT_20}}; }
 #TrackInfoSurface { border-radius: 12px; background: transparent; }
 #TrackInfoSurface:hover { background: rgba(190,200,235,0.04); }
-#CoverArt { background: {{ACCENT_15}}; color: #C1AFFF; border-radius: 11px; font-size: 24px; }
+#CoverArt { background: {{ACCENT_15}}; color: {{ACCENT_LIGHT}}; border-radius: 11px; font-size: 24px; }
 #TrackTitle { color: #EEF1FE; font-size: 13px; font-weight: 600; }
 #TrackArtist { color: #A2AEC8; font-size: 11px; }
 #TimeLabel, #PrefetchStatus { color: #8998B7; font-size: 10px; }
-#PrefetchStatus { color: #A49CC8; }
+#PrefetchStatus { color: {{ACCENT_MUTED}}; }
 #ControlButton, #SaveButton { background: transparent; border: 1px solid transparent; padding: 0; border-radius: 10px; }
 #ControlButton:hover, #SaveButton:hover { background: rgba(190,200,235,0.08); border-color: rgba(190,200,235,0.12); }
 #ControlButton:checked { background: {{ACCENT_20}}; border-color: {{ACCENT_35}}; }
@@ -98,21 +103,21 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: trans
 #PlayPauseButton:hover { background: {{ACCENT_HOVER}}; }
 QSlider::groove:horizontal { background: rgba(190,200,235,0.13); height: 4px; border-radius: 2px; }
 QSlider::sub-page:horizontal { background: {{ACCENT_COLOR}}; border-radius: 2px; }
-QSlider::handle:horizontal { background: #E1D8FF; width: 12px; height: 12px; border-radius: 6px; margin: -4px 0; }
+QSlider::handle:horizontal { background: {{ACCENT_PALE}}; width: 12px; height: 12px; border-radius: 6px; margin: -4px 0; }
 QSlider::handle:horizontal:hover { background: white; }
 #VolumeSlider::handle:horizontal { width: 10px; border-radius: 5px; }
 #VolumeSlider::sub-page:horizontal { background: #99A7C6; }
 QDialog, QInputDialog, QMessageBox, #DialogSurface { background: #171E30; border: 1px solid rgba(190,200,235,0.17); border-radius: 16px; }
 #DialogTitle { color: white; font-size: 23px; font-weight: 700; }
 #SettingsSection { background: rgba(190,200,235,0.035); border: 1px solid rgba(190,200,235,0.1); border-radius: 12px; }
-#SectionTitle { color: #A99BCF; font-size: 10px; font-weight: 600; padding-bottom: 8px; }
+#SectionTitle { color: {{ACCENT_MUTED}}; font-size: 10px; font-weight: 600; padding-bottom: 8px; }
 #SettingsRowTitle { color: #E8ECF7; font-size: 13px; font-weight: 600; }
 #SettingsRowDescription { color: #A3ADC5; font-size: 11px; }
-#SettingsValue { color: #D8CCFF; font-size: 12px; }
+#SettingsValue { color: {{ACCENT_LIGHT}}; font-size: 12px; }
 #PresetButton { text-align: left; padding: 10px 12px; border-radius: 8px; font-size: 12px; }
 QCheckBox::indicator { width: 34px; height: 18px; border: 1px solid #536079; background: #253048; border-radius: 9px; }
 QCheckBox::indicator:checked { background: {{ACCENT_COLOR}}; border-color: {{ACCENT_COLOR}}; }
-QCheckBox::indicator:hover { border-color: #D4C7FF; }
+QCheckBox::indicator:hover { border-color: {{ACCENT_LIGHT}}; }
 QProgressBar { border: none; background: #29314A; border-radius: 3px; }
 QProgressBar::chunk { background: {{ACCENT_COLOR}}; border-radius: 3px; }
 QMenu { color: #DEE5F8; background: #1C2439; border: 1px solid #36415B; border-radius: 10px; padding: 6px; }
@@ -125,4 +130,82 @@ QToolTip { color: #E9E6F8; background: #252D43; border: 1px solid #46516D; paddi
     border-radius: 10px; padding: 8px 14px; min-width: 100px;
 }
 #LanguageSelector:focus { border-color: {{ACCENT_COLOR}}; }
+#LanguageSelector::drop-down { subcontrol-origin: padding; subcontrol-position: center right; width: 28px; border: none; background: transparent; }
+#LanguageSelector::down-arrow { image: url("{{ASSET_DIR}}/chevron-down.svg"); width: 12px; height: 12px; }
 #LanguageSelector QAbstractItemView { color: #E9ECF6; background: #26304A; selection-background-color: {{ACCENT_COLOR}}; }
+
+/* Shared components that used to carry their own inline colours. */
+#SidebarSectionLabel { color: #929BB4; font-size: 10px; font-weight: 600; padding: 0 8px; letter-spacing: 1px; }
+#SidebarDivider { background: rgba(190,200,235,0.06); }
+#ArtistLink, #TrackArtist {
+    text-align: left; background: transparent; border: none; border-radius: 0;
+    padding: 0; min-height: 18px; max-height: 22px; font-size: 11px; color: #A8B1C8;
+}
+#ArtistLink:hover, #ArtistLink:focus, #TrackArtist:hover, #TrackArtist:focus {
+    color: {{ACCENT_LIGHT}}; background: transparent; border: none; text-decoration: underline;
+}
+#ArtistLink:disabled, #TrackArtist:disabled { color: #798198; background: transparent; }
+#AddTrackButton {
+    color: #A1A9BE; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 15px; font-size: 16px; font-weight: bold; padding: 0;
+    min-height: 30px; max-height: 30px; min-width: 30px; max-width: 30px;
+}
+#AddTrackButton:hover { color: {{ACCENT_LIGHT}}; background: {{ACCENT_20}}; border-color: {{ACCENT_40}}; }
+#RemoveTrackButton {
+    color: #969EB6; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 13px; font-size: 11px; padding: 0;
+}
+#RemoveTrackButton:hover { color: {{DANGER_COLOR}}; background: rgba(244,101,126,0.15); border-color: rgba(244,101,126,0.35); }
+#PlaylistCover {
+    background: rgba(255,255,255,0.04); border: 2px dashed rgba(255,255,255,0.08);
+    border-radius: 14px; font-size: 40px; color: #8993AE;
+}
+#PlaylistCover:hover { border: 2px dashed {{ACCENT_35}}; background: {{ACCENT_05}}; }
+#PlaylistCover[hasCover="true"] { background: transparent; border: 2px solid transparent; }
+#PlaylistCover[hasCover="true"]:hover { border: 2px solid {{ACCENT_40}}; }
+#StatusLabel { color: #A1A9BE; font-size: 11px; }
+#StatusLabel[state="success"] { color: {{SUCCESS_COLOR}}; }
+#StatusLabel[state="error"] { color: {{DANGER_COLOR}}; }
+#SearchStatus { color: #9395AB; font-size: 12px; }
+#SearchStatus[state="error"] { color: {{DANGER_COLOR}}; }
+#QueueDropIndicator { background: {{ACCENT_LIGHT}}; border: none; border-radius: 2px; }
+#BrandTitle { color: #FFFFFF; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; }
+#BrandTitle[hovered="true"] { color: {{ACCENT_LIGHT}}; }
+#BrandSubtitle { color: #8790A8; font-size: 10px; font-weight: 500; }
+#BrandSubtitle[playing="true"] { color: {{ACCENT_LIGHT}}; font-weight: 600; }
+
+/* Cover-art tiles and the "now playing" state of track rows. */
+#TrackTile { background: rgba(190,200,235,0.03); border: 1px solid rgba(190,200,235,0.06); border-radius: 14px; }
+#TrackTile:hover { background: rgba(190,200,235,0.07); border-color: rgba(190,200,235,0.14); }
+#TrackTile[nowPlaying="true"] { background: {{ACCENT_10}}; border-color: {{ACCENT_40}}; }
+#TileTitle { color: #EEF1FE; font-size: 13px; font-weight: 600; }
+#TileReason { color: {{ACCENT_MUTED}}; font-size: 10px; }
+#TileAddButton {
+    color: white; background: rgba(5,8,16,0.6); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 15px; padding: 0; font-size: 16px; font-weight: 600;
+}
+#TileAddButton:hover { background: {{ACCENT_COLOR}}; border-color: {{ACCENT_COLOR}}; }
+#SearchResultCard, #PlaylistTrackCard {
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03); border-radius: 10px;
+}
+#SearchResultCard:hover, #PlaylistTrackCard:hover { background: rgba(190,200,235,0.06); border-color: rgba(190,200,235,0.16); }
+#SearchResultCard[nowPlaying="true"], #PlaylistTrackCard[nowPlaying="true"] { background: {{ACCENT_10}}; border-color: {{ACCENT_40}}; }
+#TrackIndex { color: #969EB6; font-size: 12px; }
+#TrackIndex[nowPlaying="true"] { color: {{ACCENT_LIGHT}}; font-size: 13px; font-weight: 700; }
+#SuggestionChip {
+    color: #D8DDEC; background: rgba(190,200,235,0.06); border: 1px solid rgba(190,200,235,0.12);
+    border-radius: 16px; padding: 7px 14px; font-size: 12px;
+}
+#SuggestionChip:hover { color: white; background: {{ACCENT_15}}; border-color: {{ACCENT_40}}; }
+#LinkButton { color: {{ACCENT_LIGHT}}; background: transparent; border: none; padding: 2px 4px; font-size: 11px; }
+#LinkButton:hover { color: white; background: transparent; text-decoration: underline; }
+#DiscoverTitle { color: #C9CFE0; font-size: 13px; font-weight: 600; }
+#PlayPauseButton:disabled { background: rgba(190,200,235,0.08); border-color: rgba(190,200,235,0.1); }
+#ControlButton:disabled, #SaveButton:disabled { background: transparent; border-color: transparent; }
+QSlider::handle:horizontal:disabled { background: transparent; }
+QSlider::sub-page:horizontal:disabled { background: rgba(190,200,235,0.13); }
+#QueueEmpty { background: transparent; }
+#QueueEmptyIcon {
+    color: {{ACCENT_LIGHT}}; background: {{ACCENT_10}}; border: 1px solid {{ACCENT_20}};
+    border-radius: 28px; font-size: 24px; min-width: 56px; max-width: 56px; min-height: 56px; max-height: 56px;
+}

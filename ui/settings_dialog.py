@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from ui.jump_slider import JumpSlider
-from core.theme_manager import PRESETS
+from core.theme_manager import PRESETS, parse_color
 
 COLOR_OPTIONS = [
     ('accent', 'ACCENT_COLOR', 'Kolor akcentu', 'Przyciski, aktywne elementy i suwaki'),
@@ -46,12 +46,17 @@ class ColorPickerRow(QWidget):
         theme_manager.theme_changed.connect(self._refresh)
         self._refresh()
 
+    def _current_color(self):
+        return parse_color(self.theme_manager.current_theme.get(self.theme_key, '#10131F'))
+
     def _current_hex(self):
-        value = str(self.theme_manager.current_theme.get(self.theme_key, '#10131F'))
-        return '#10131F' if value.startswith('rgba') else value
+        return self._current_color().name()
 
     def _refresh(self):
-        self.swatch.setStyleSheet(f'background: {self._current_hex()}; border: 2px solid #68728F; border-radius: 10px;')
+        color = self._current_color()
+        self.swatch.setStyleSheet(
+            f'background: rgba({color.red()}, {color.green()}, {color.blue()}, {color.alphaF():.2f}); '
+            'border: 2px solid #68728F; border-radius: 10px;')
 
     def _pick_color(self):
         color = QColorDialog.getColor(QColor(self._current_hex()), self, tr('Wybierz kolor'))
@@ -79,14 +84,13 @@ class SliderRow(QWidget):
         layout.addWidget(self.val_label)
         layout.addWidget(self.slider)
         theme_manager.theme_changed.connect(self._refresh)
+        theme_manager.settings_changed.connect(self._refresh)
 
     def _refresh(self):
         self.slider.setValue(int(self.theme_manager.current_theme.get(self.theme_key, 0)))
 
     def _save(self):
-        self.theme_manager.current_theme[self.theme_key] = self.slider.value()
-        self.theme_manager.save_theme()
-        self.theme_manager.theme_changed.emit()
+        self.theme_manager.set_setting(self.theme_key, self.slider.value())
 
 
 class ToggleRow(QWidget):
@@ -102,6 +106,7 @@ class ToggleRow(QWidget):
         self.checkbox.toggled.connect(self._save)
         layout.addWidget(self.checkbox)
         theme_manager.theme_changed.connect(self._refresh)
+        theme_manager.settings_changed.connect(self._refresh)
 
     def _refresh(self):
         self.checkbox.blockSignals(True)
@@ -109,9 +114,7 @@ class ToggleRow(QWidget):
         self.checkbox.blockSignals(False)
 
     def _save(self, checked):
-        self.theme_manager.current_theme[self.theme_key] = checked
-        self.theme_manager.save_theme()
-        self.theme_manager.theme_changed.emit()
+        self.theme_manager.set_setting(self.theme_key, checked)
 
 
 class DraggableHeader(QWidget):
@@ -143,9 +146,16 @@ class SettingsDialog(QDialog):
         set_text(self, 'Ustawienia', 'windowTitle')
         self.setObjectName('SettingsDialog')
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
+        # Like the main window: the rounded QSS surface needs see-through corners.
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setMinimumSize(540, 540)
         self.resize(600, 680)
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        surface = QFrame(self)
+        surface.setObjectName('DialogSurface')
+        outer.addWidget(surface)
+        root = QVBoxLayout(surface)
         root.setContentsMargins(22, 18, 22, 18)
         root.setSpacing(16)
         header = DraggableHeader(self)

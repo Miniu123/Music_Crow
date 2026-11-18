@@ -16,6 +16,7 @@ from core.recommendations import track_key
 
 QUEUE_MIME = "application/x-music-crow-queue"
 from core.thumbnail_loader import ThumbnailManager, get_rounded_pixmap
+from core.theme_manager import active_palette
 
 class QueueTrackCard(QFrame):
     """A track card within the queue view."""
@@ -54,6 +55,7 @@ class QueueTrackCard(QFrame):
 
         platform = track.get("platform", "")
         platform_color = PLATFORM_COLORS.get(platform, "#A1A9BE")
+        badge_text = QColor(platform_color).lighter(135).name()  # pure brand red is hard to read
 
         self.setStyleSheet(f"""
             QFrame#QueueTrackCard {{
@@ -97,7 +99,7 @@ class QueueTrackCard(QFrame):
 
         badge = QLabel(platform)
         badge.setStyleSheet(f"""
-            font-size: 9px; color: {platform_color};
+            font-size: 9px; color: {badge_text};
             background-color: rgba(255,255,255,0.04);
             border: 1px solid {platform_color};
             border-radius: 7px; padding: 1px 6px;
@@ -193,7 +195,7 @@ class QueueTrackCard(QFrame):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         strength = max(self._hover * 0.5, self._feedback)
-        color = QColor('#F18CA3' if self._removing else '#B39AFF')
+        color = QColor('#F18CA3') if self._removing else QColor(active_palette()['ACCENT_LIGHT'])
         color.setAlpha(38 if self._removing else int(28 * strength))
         painter.setBrush(color)
         color.setAlpha(125 if self._removing else int(140 * strength))
@@ -278,7 +280,6 @@ class DropContainer(QWidget):
         # An overlay does not change card geometry as the insertion position moves.
         self.drop_indicator = QFrame(self)
         self.drop_indicator.setObjectName("QueueDropIndicator")
-        self.drop_indicator.setStyleSheet('background: #B39AFF; border: none; border-radius: 2px;')
         self.drop_indicator.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.drop_indicator.hide()
 
@@ -401,7 +402,7 @@ class QueuePage(QWidget):
         self._recommendation_status = "Wybierz utwór lub playlistę, aby otrzymać propozycje."
         self.setObjectName("QueuePage")
         main = QVBoxLayout(self)
-        main.setContentsMargins(24, 20, 24, 20)
+        main.setContentsMargins(30, 24, 30, 20)
         main.setSpacing(12)
         header = QHBoxLayout()
         title = text(QLabel(""), 'Kolejki odtwarzania')
@@ -664,15 +665,25 @@ class QueuePage(QWidget):
         self.recommendation_status_label = text(QLabel(), self._recommendation_status)
         self.recommendation_status_label.setObjectName("QueueHint")
         self.recommendation_status_label.setWordWrap(True)
-        self._append(self.recommended_layout, self.recommendation_status_label)
+        if self.player._recommended_queue:
+            self._append(self.recommended_layout, self.recommendation_status_label)
+        else:
+            # One empty state: the status already says why the list is empty.
+            empty = QWidget()
+            empty.setObjectName("QueueEmpty")
+            empty_layout = QVBoxLayout(empty)
+            empty_layout.setContentsMargins(16, 36, 16, 16)
+            empty_layout.setSpacing(10)
+            glyph = QLabel("♪")
+            glyph.setObjectName("QueueEmptyIcon")
+            glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.recommendation_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty_layout.addWidget(glyph, alignment=Qt.AlignmentFlag.AlignHCenter)
+            empty_layout.addWidget(self.recommendation_status_label)
+            self._append(self.recommended_layout, empty)
         for i, track in enumerate(self.player._recommended_queue):
             self._append(self.recommended_layout, self._card(track, i, "recommended"))
         self.recommended_count.setText(str(len(self.player._recommended_queue)))
-        if not self.player._recommended_queue:
-            empty = text(QLabel(""), 'Tutaj pojawią się propozycje do dalszego słuchania.')
-            empty.setObjectName("QueueHint")
-            empty.setWordWrap(True)
-            self._append(self.recommended_layout, empty)
 
         self._feedback_cards = [c for c in self._cards if c.queue_type != 'now_playing'
                                 and (c.queue_type, c.index, id(c.track)) not in old_positions]

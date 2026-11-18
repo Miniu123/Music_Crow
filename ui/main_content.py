@@ -10,11 +10,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QPixmap
 
-from ui.search_page import SearchPage, SearchResultCard
+from ui.search_page import SearchPage
 from ui.playlist_page import PlaylistPage
 from ui.queue_page import QueuePage
 from ui.create_playlist_dialog import CreatePlaylistDialog
 from core.thumbnail_loader import get_rounded_pixmap, ThumbnailManager
+from core.theme_manager import active_palette, connect_theme_changed
+from ui.track_tile import TileGrid, TrackTile, same_track
 from core.recommendations import ListeningHistory, RecommendationManager, PlaybackRecommendationManager
 
 
@@ -131,14 +133,15 @@ class HomePage(QWidget):
         self.recommendation_status.setObjectName("HomeSubtitle")
         self.recommendation_status.setWordWrap(True)
         content_layout.addWidget(self.recommendation_status)
-        self.recommendations_layout = QVBoxLayout()
-        self.recommendations_layout.setSpacing(8)
-        content_layout.addLayout(self.recommendations_layout)
+        self.recommendation_grid = TileGrid()
+        content_layout.addWidget(self.recommendation_grid)
         self.recommendation_thumbnails = ThumbnailManager()
         self._recommendation_tracks = []
         self.history = ListeningHistory(player, self)
         self.recommendations = RecommendationManager(player, playlist_manager, self.history, self)
         self.recommendations.updated.connect(self._show_recommendations)
+        if hasattr(player, "track_started"):
+            player.track_started.connect(self._mark_now_playing)
         self.recommendations.status_changed.connect(lambda value: set_text(self.recommendation_status, value))
         self.recommendations.busy_changed.connect(self.refresh_recommendations.setDisabled)
         self.refresh_recommendations.clicked.connect(lambda: self.recommendations.refresh(force=True))
@@ -152,29 +155,31 @@ class HomePage(QWidget):
             self.playlist_manager.playlist_created.connect(lambda _: self._refresh_playlists())
             self.playlist_manager.playlist_updated.connect(lambda _: self._refresh_playlists())
             self.playlist_manager.playlist_deleted.connect(lambda _: self._refresh_playlists())
+            connect_theme_changed(self._refresh_playlists)
 
         self._refresh_playlists()
 
     def _show_recommendations(self, tracks):
         self.hero.setVisible(not bool(tracks))
         self.recommendation_thumbnails.cancel_all()
-        while self.recommendations_layout.count():
-            item = self.recommendations_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
         self._recommendation_tracks = tracks
+        tiles = []
         for track in tracks:
-            reason = text(QLabel(), track.get("recommendation_reason", "Proponowane dla Ciebie"))
-            reason.setObjectName("RecommendationReason")
-            self.recommendations_layout.addWidget(reason)
-            card = SearchResultCard(track)
-            card.clicked.connect(self._play_recommendation)
-            card.artist_requested.connect(self.artist_requested.emit)
-            card.add_to_playlist.connect(self.recommendation_add_requested.emit)
-            self.recommendations_layout.addWidget(card)
+            tile = TrackTile(track, track.get("recommendation_reason", ""))
+            tile.clicked.connect(self._play_recommendation)
+            tile.artist_requested.connect(self.artist_requested.emit)
+            tile.add_requested.connect(self.recommendation_add_requested.emit)
+            tiles.append(tile)
             self.recommendation_thumbnails.load(
-                track.get("thumbnail_url", ""), lambda url, pixmap, c=card: c.set_thumbnail(pixmap)
+                track.get("thumbnail_url", ""), lambda url, pixmap, t=tile: t.set_thumbnail(pixmap)
             )
+        self.recommendation_grid.set_tiles(tiles)
+        self._mark_now_playing()
+
+    def _mark_now_playing(self, *_):
+        current = getattr(self.player, "_current_track", {}) or {}
+        for tile in self.recommendation_grid.tiles:
+            tile.set_now_playing(same_track(tile.track, current))
 
     def _play_recommendation(self, track):
         index = next((i for i, item in enumerate(self._recommendation_tracks)
@@ -231,8 +236,9 @@ class HomePage(QWidget):
         playlists = self.playlist_manager.list_playlists()
         set_text(self.library_count, f"Playlisty: {len(playlists)}")
         self.empty_library.setVisible(not playlists)
+        palette = active_palette()
         colors = [
-            "rgba(139, 92, 246, 0.15)",   # purple
+            palette["ACCENT_15"],          # theme accent
             "rgba(236, 72, 153, 0.15)",    # pink
             "rgba(59, 130, 246, 0.15)",    # blue
             "rgba(16, 185, 129, 0.15)",    # green
@@ -252,7 +258,7 @@ class HomePage(QWidget):
                     border: 1px solid rgba(255,255,255,0.04);
                 }}
                 QFrame#LibraryCard:hover {{
-                    border: 1px solid rgba(255,255,255,0.2);
+                    border: 1px solid {palette["ACCENT_40"]};
                 }}
             """)
             card.setFixedHeight(76)
@@ -305,6 +311,9 @@ class HomePage(QWidget):
 class MainContent(QWidget):
     """Main content area with stacked pages for navigation."""
 
+    PAGE_NAMES = ("home", "search", "playlist", "queue", "artist")
+    page_changed = pyqtSignal(str, str)  # page name, playlist name (playlist page only)
+
     def __init__(self, player, playlist_manager=None, parent=None):
         super().__init__(parent)
         self.player = player
@@ -337,7 +346,7 @@ class MainContent(QWidget):
         self._artist_origin = 0
         for page in (self.home_page, self.search_page, self.playlist_page, self.queue_page, self.artist_page):
             page.artist_requested.connect(self.show_artist)
-        self.artist_page.back_requested.connect(lambda: self._fade_to_page(self._artist_origin))
+        self.artist_page.back_requested.connect(lambda: self._show_page(self._artist_origin))
         layout.addWidget(self.stack)
 
     def _fade_to_page(self, index: int, on_switched=None):
@@ -379,25 +388,33 @@ class MainContent(QWidget):
         self._current_page_anim = anim
         anim.start()
 
+    def _show_page(self, index: int, on_switched=None):
+        self._fade_to_page(index, on_switched)
+        self.page_changed.emit(*self.current_page())
+
+    def current_page(self):
+        page = self.PAGE_NAMES[self.stack.currentIndex()]
+        return page, self.playlist_page._current_playlist if page == "playlist" else ""
+
     def show_home(self):
-        self._fade_to_page(0)
+        self._show_page(0)
 
     def show_search(self):
-        self._fade_to_page(1, on_switched=lambda: self.search_page.search_input.setFocus())
+        self._show_page(1, on_switched=lambda: self.search_page.search_input.setFocus())
 
     def show_search_with_query(self, query: str):
-        self._fade_to_page(1, on_switched=lambda: self.search_page.perform_search(query))
+        self._show_page(1, on_switched=lambda: self.search_page.perform_search(query))
 
     def show_playlist(self, name: str):
         self.playlist_page.load_playlist(name)
-        self._fade_to_page(2)
+        self._show_page(2)
 
     def show_queue(self):
         self.queue_page.refresh()
-        self._fade_to_page(3)
+        self._show_page(3)
 
     def show_artist(self, track):
         if self.stack.currentIndex() != 4:
             self._artist_origin = self.stack.currentIndex()
         self.artist_page.open_artist(track)
-        self._fade_to_page(4)
+        self._show_page(4)

@@ -6,21 +6,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 
 class CreatePlaylistDialog(QDialog):
-    INPUT_STYLE = """
-        QLineEdit {
-            background-color: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 12px;
-            padding: 12px 16px;
-            color: #FFFFFF;
-            font-size: 13px;
-        }
-        QLineEdit:focus {
-            border: 1px solid rgba(139,92,246,0.5);
-            background-color: rgba(255,255,255,0.1);
-        }
-    """
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)

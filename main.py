@@ -6,6 +6,7 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
 from ui.main_window import MainWindow
 from ui.splash_screen import SplashScreen
+from ui.fonts import load_bundled_fonts
 from core.theme_manager import ThemeManager
 from core.i18n import language_manager, tr
 
@@ -14,6 +15,9 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName('Music Crow')
     app.setDesktopFileName('io.github.Miniu123.MusicCrow')
+
+    # Bundled Inter keeps typography identical on systems without it installed
+    load_bundled_fonts()
 
     # mpv requires LC_NUMERIC="C" but QApplication changes it, so we revert it
     locale.setlocale(locale.LC_NUMERIC, 'C')

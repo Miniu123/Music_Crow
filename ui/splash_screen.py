@@ -7,6 +7,7 @@ from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, 
 from PyQt6.QtWidgets import QWidget
 
 from core.i18n import tr
+from core.theme_manager import derive_palette
 
 
 def _ease(value):
@@ -177,7 +178,7 @@ class SplashScreen(QWidget):
             width += 0.76 * completion
         gradient = QLinearGradient(rail.topLeft(), rail.topRight())
         gradient.setColorAt(0, self._accent)
-        gradient.setColorAt(1, QColor("#66D4DF"))
+        gradient.setColorAt(1, QColor(derive_palette(self._accent.name())["ACCENT_LIGHT"]))
         painter.setBrush(gradient)
         painter.drawRoundedRect(QRectF(rail.x() + rail.width() * offset, rail.y(), rail.width() * width, rail.height()), 1.5, 1.5)
 

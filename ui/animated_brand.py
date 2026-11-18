@@ -5,6 +5,7 @@ import random
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QRectF
 from PyQt6.QtGui import QPainter, QColor, QRadialGradient, QLinearGradient, QPixmap, QPainterPath
+from core.theme_manager import active_accent, active_palette, connect_theme_changed, with_alpha
 
 
 class SoundwaveVisualizer(QWidget):
@@ -76,6 +77,8 @@ class SoundwaveVisualizer(QWidget):
         start_x = (self.width() - total_width) / 2.0
         max_h = self.height() - 4.0
 
+        accent = active_accent()
+        highlight = QColor(active_palette()["ACCENT_LIGHT"])
         for i, val in enumerate(self._bars):
             h = max(2.5, val * max_h)
             x = start_x + i * (bar_width + gap)
@@ -84,10 +87,10 @@ class SoundwaveVisualizer(QWidget):
             rect = QRectF(x, y, bar_width, h)
 
             if self._is_playing:
-                # Vertical gradient: purple bottom -> cyan top
+                # Vertical gradient: accent bottom -> light accent top
                 grad = QLinearGradient(x, y + h, x, y)
-                grad.setColorAt(0.0, QColor(139, 92, 246, 230))
-                grad.setColorAt(1.0, QColor(6, 182, 212, 255))
+                grad.setColorAt(0.0, with_alpha(accent, 230))
+                grad.setColorAt(1.0, highlight)
                 painter.setBrush(grad)
             else:
                 painter.setBrush(QColor(120, 120, 140, 110))
@@ -147,21 +150,11 @@ class AnimatedBrandWidget(QWidget):
         text_layout.setSpacing(1)
 
         self.title_label = QLabel("Music Crow", self)
-        self.title_label.setStyleSheet("""
-            font-size: 15px;
-            font-weight: 700;
-            color: #FFFFFF;
-            background: transparent;
-            letter-spacing: 0.5px;
-        """)
+        self.title_label.setObjectName("BrandTitle")
 
         self.sub_label = text(QLabel("", self), 'Twoja muzyka')
-        self.sub_label.setStyleSheet("""
-            font-size: 10px;
-            font-weight: 500;
-            color: #666677;
-            background: transparent;
-        """)
+        self.sub_label.setObjectName("BrandSubtitle")
+        connect_theme_changed(self._repaint_all)
 
         text_layout.addWidget(self.title_label)
         text_layout.addWidget(self.sub_label)
@@ -181,7 +174,7 @@ class AnimatedBrandWidget(QWidget):
         if self._hover_factor > 0.01:
             pill_rect = QRectF(self.rect()).adjusted(2, 2, -2, -2)
             bg_col = QColor(255, 255, 255, int(15 * self._hover_factor))
-            border_col = QColor(139, 92, 246, int(60 * self._hover_factor))
+            border_col = with_alpha(active_accent(), 60 * self._hover_factor)
             painter.setBrush(bg_col)
             painter.setPen(border_col)
             painter.drawRoundedRect(pill_rect, 14, 14)
@@ -203,9 +196,10 @@ class AnimatedBrandWidget(QWidget):
             glow_radius = 17.0 + pulse_extra + 3.0 * self._hover_factor
             radial = QRadialGradient(cx, cy, glow_radius)
             alpha = int((140 if self._is_playing else 100) * effective_glow)
-            radial.setColorAt(0.0, QColor(139, 92, 246, alpha))
-            radial.setColorAt(0.65, QColor(99, 102, 241, int(alpha * 0.45)))
-            radial.setColorAt(1.0, QColor(139, 92, 246, 0))
+            accent = active_accent()
+            radial.setColorAt(0.0, with_alpha(accent, alpha))
+            radial.setColorAt(0.65, with_alpha(accent.darker(115), alpha * 0.45))
+            radial.setColorAt(1.0, with_alpha(accent, 0))
             painter.setBrush(radial)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(QRectF(cx - glow_radius, cy - glow_radius, glow_radius * 2, glow_radius * 2))
@@ -249,41 +243,40 @@ class AnimatedBrandWidget(QWidget):
 
         if is_playing:
             set_text(self.sub_label, 'Odtwarzanie 🎵', 'text')
-            self.sub_label.setStyleSheet("font-size: 10px; font-weight: 600; color: #9672FF; background: transparent;")
+            self._set_state(self.sub_label, "playing", True)
             if not self._anim_timer.isActive():
                 self._anim_timer.start()
         else:
             set_text(self.sub_label, 'Twoja muzyka', 'text')
-            self.sub_label.setStyleSheet("font-size: 10px; font-weight: 500; color: #666677; background: transparent;")
+            self._set_state(self.sub_label, "playing", False)
             if not self._is_hovered:
                 self._anim_timer.stop()
             self.logo_container.update()
 
     def enterEvent(self, event):
         self._is_hovered = True
-        self.title_label.setStyleSheet("""
-            font-size: 15px;
-            font-weight: 700;
-            color: #C4B5FD;
-            background: transparent;
-            letter-spacing: 0.5px;
-        """)
+        self._set_state(self.title_label, "hovered", True)
         if not self._anim_timer.isActive():
             self._anim_timer.start()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         self._is_hovered = False
-        self.title_label.setStyleSheet("""
-            font-size: 15px;
-            font-weight: 700;
-            color: #FFFFFF;
-            background: transparent;
-            letter-spacing: 0.5px;
-        """)
+        self._set_state(self.title_label, "hovered", False)
         if not self._anim_timer.isActive():
             self._anim_timer.start()
         super().leaveEvent(event)
+
+    @staticmethod
+    def _set_state(label, name, value):
+        label.setProperty(name, value)
+        label.style().unpolish(label)
+        label.style().polish(label)
+
+    def _repaint_all(self):
+        self.update()
+        self.logo_container.update()
+        self.visualizer.update()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

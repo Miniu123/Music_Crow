@@ -15,12 +15,7 @@ class ArtistButton(QPushButton):
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.setMinimumWidth(0)
         self.setMaximumWidth(300)
-        self.setStyleSheet('''
-            QPushButton { text-align: left; background: transparent; border: none;
-                padding: 0; min-height: 18px; max-height: 22px; font-size: 11px; color: #A8B1C8; }
-            QPushButton:hover, QPushButton:focus { color: #C4ACFF; text-decoration: underline; }
-            QPushButton:disabled { color: #798198; }
-        ''')
+        self.setObjectName('ArtistLink')
         set_text(self, 'Przejdź do artysty / kanału', 'toolTip')
         set_text(self, 'Przejdź do artysty / kanału', 'accessibleName')
         self.clicked.connect(lambda: self.artist_requested.emit(dict(self.track)))
