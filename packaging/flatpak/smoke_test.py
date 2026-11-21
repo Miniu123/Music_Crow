@@ -69,7 +69,7 @@ def verify():
         licenses = LicenseDialog(window)
         license_texts = '\n'.join(view.toPlainText() for view in licenses.findChildren(QPlainTextEdit))
         assert 'MIT License' in license_texts
-        assert 'Copyright (c) 2026 Miniu123' in license_texts
+        assert 'Copyright (c) 2026 Miniowski_' in license_texts
         assert 'GPL-3.0-only' in license_texts
         licenses.close()
         assert window.grab().save(sys.argv[1])

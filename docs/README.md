@@ -22,27 +22,28 @@ No Node.js, npm, backend, build command, external fonts, analytics scripts, or s
 
 ## App download
 
-The homepage's primary button and centred download section point directly to
-`Music-Crow-0.1.0-x86_64.flatpak` on the repository's `main` branch, using
-GitHub's raw download URL. The bundle and `SHA256SUMS` live in the repository
-root, outside `docs/`; the website does not store a second copy. Publish both
-root files as well as the website changes. The links become available only
-after the files reach GitHub. Upload the bundle using Git (the browser upload
-limit is lower), and keep it below GitHub's 100 MiB regular-file limit.
+The download buttons point to the ready-to-install files in the repository's
+`releases/` folder on the `main` branch, using GitHub's raw download URL:
+the Windows installer (`.exe`), the Linux Flatpak (`.flatpak`) and the Android
+APK (`.apk`), with their checksums in `releases/SHA256SUMS`. The website does
+not keep a second copy, so publish `releases/` together with the website
+changes; the links work only once the files are on GitHub. Upload binaries
+with Git (the browser upload limit is lower) and keep each one below GitHub's
+100 MiB regular-file limit.
 
-When replacing the bundle, update its SHA-256 checksum. For a new filename or
-version, update both download buttons, the installation command and the
-version labels in `index.html`, as well as the root README. Check the download
-after deployment; a locally working page alone does not verify a published
-binary.
+When replacing a file, update its line in `releases/SHA256SUMS`. For a new
+filename or version, update the download buttons, version labels and
+installation steps in `index.html`, as well as the root README. Check the
+downloads after deployment; a locally working page does not verify a
+published binary.
 
 ## Publishing website changes
 
 If this checkout is already linked to the correct repository, stage the website and download files with:
 
 ```bash
-git add docs README.md .gitattributes Music-Crow-0.1.0-x86_64.flatpak SHA256SUMS
-git commit -m "Add Music Crow Flatpak download and installation guide"
+git add docs README.md releases
+git commit -m "Update website and downloads"
 git push origin main
 ```
 

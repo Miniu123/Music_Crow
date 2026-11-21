@@ -15,7 +15,7 @@ class LicenseDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
-        heading = text(QLabel(), 'Music Crow · © 2026 Miniu123')
+        heading = text(QLabel(), 'Music Crow · © 2026 Miniowski_')
         heading.setObjectName('SettingsRowTitle')
         layout.addWidget(heading)
         summary = text(QLabel(), 'Kod Music Crow: MIT. Biblioteki mają własne licencje, w tym GPLv3 dla PyQt6.')

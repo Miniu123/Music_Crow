@@ -4,12 +4,12 @@ A desktop music player built with Python and PyQt6. Search for tracks on YouTube
 
 ## Install the Linux app (Flatpak)
 
-**[Download Music Crow 0.1.0 for Linux x86_64](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/Music-Crow-0.1.0-x86_64.flatpak)**
+**[Download Music Crow 0.1.0 for Linux x86_64](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/releases/Music-Crow-0.1.0-x86_64.flatpak)**
 
-The ready-to-install `Music-Crow-0.1.0-x86_64.flatpak` is stored in the root of this repository. This build supports 64-bit Intel/AMD Linux systems; it is not a Windows, macOS or ARM package. You do not need to install Python or libmpv separately.
+The ready-to-install `Music-Crow-0.1.0-x86_64.flatpak` is stored in the `releases/` folder of this repository. This build supports 64-bit Intel/AMD Linux systems; it is not a Windows, macOS or ARM package. You do not need to install Python or libmpv separately.
 
 1. Install Flatpak for your Linux distribution using the [official setup instructions](https://flatpak.org/setup/).
-2. Download the file above. Open a terminal in the folder containing it (usually Downloads), or in the repository root if you cloned the project.
+2. Download the file above. Open a terminal in the folder containing it (usually Downloads), or in `releases/` if you cloned the project.
 3. Add Flathub for runtime dependencies, then install Music Crow:
 
 ```bash
@@ -27,13 +27,17 @@ flatpak run io.github.Miniu123.MusicCrow
 
 Settings and playlists are stored in `~/.var/app/io.github.Miniu123.MusicCrow/config/music-crow/`. The Flatpak keeps its data separate from the Python version; use Google Drive backup and restore to transfer your library. This local bundle does not provide automatic app updates; install a newer bundle when one is published.
 
-To check the download, also save [SHA256SUMS](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/SHA256SUMS) beside the `.flatpak` file and run `sha256sum --ignore-missing -c SHA256SUMS`. The checksum list also covers the Windows installer; only downloaded files are checked.
+To check the download, also save [SHA256SUMS](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/releases/SHA256SUMS) beside the `.flatpak` file and run `sha256sum --ignore-missing -c SHA256SUMS`. The checksum list also covers the Windows installer and the Android APK; only downloaded files are checked.
 
 ## Install the Windows app
 
-Run [Music-Crow-0.1.1-Windows-x64-Setup.exe](Music-Crow-0.1.1-Windows-x64-Setup.exe) on Windows 10/11 x64. The installer is approximately 81 MiB; the installed application uses approximately 236 MiB, plus its audio cache. Python does not need to be installed separately. Installation is per user and does not require administrator rights.
+Run [Music-Crow-0.1.1-Windows-x64-Setup.exe](releases/Music-Crow-0.1.1-Windows-x64-Setup.exe) on Windows 10/11 x64. The installer is approximately 81 MiB; the installed application uses approximately 236 MiB, plus its audio cache. Python does not need to be installed separately. Installation is per user and does not require administrator rights.
 
 The installer adds a Start menu shortcut. Uninstalling preserves playlists and settings in `%APPDATA%\Music Crow`. Installation, startup and uninstallation have been tested under Wine; native Windows testing is still outstanding.
+
+## Install the Android app
+
+Download [Music-Crow-0.9.0-Android.apk](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/releases/Music-Crow-0.9.0-Android.apk) (about 49 MiB) on an Android 8.0+ phone (ARM64). Open the file and, when asked, allow your browser or file manager to install apps from this source. A newer APK installs over the existing app and keeps playlists and settings; Google Drive backup transfers the library from the desktop app. Details: [android/README.md](android/README.md).
 
 ## Project layout
 
@@ -42,7 +46,8 @@ The installer adds a Start menu shortcut. Uninstalling preserves playlists and s
 - `tests/`: automated checks.
 - `docs/`: GitHub Pages website, privacy policy and license page.
 - `packaging/flatpak/`: Flatpak build scripts and instructions.
-- Root `.flatpak` and `Setup.exe` files: ready-to-install releases, verified by `SHA256SUMS`.
+- [`android/`](android/README.md): native Android app, with desktop-compatible backups; Google Drive setup is documented separately.
+- [`releases/`](releases/): ready-to-install `.flatpak`, `Setup.exe` and `.apk` files, verified by `SHA256SUMS`.
 
 Use `.venv/` for local development. Generated caches, build output and dependency downloads are ignored by Git. Keep full-checkout archives and separate build workspaces outside the project root.
 

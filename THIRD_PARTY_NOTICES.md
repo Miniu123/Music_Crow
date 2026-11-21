@@ -1,6 +1,6 @@
 # Music Crow: licensing scope and third-party components
 
-Copyright (c) 2026 Miniu123. The original Music Crow code and documentation
+Copyright (c) 2026 Miniowski_. The original Music Crow code and documentation
 are licensed under MIT; see LICENSE. Third-party code, libraries and their
 assets retain their own licenses. Music, artwork and other content accessed
 through external services are not licensed by Music Crow.

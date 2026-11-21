@@ -1,0 +1,15 @@
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#9672FF</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#10131F</item>
+        <item name="android:navigationBarColor">#10131F</item>
+        <item name="android:statusBarColor">#10131F</item>
+    </style>
+    <style name="PlayerMotion">
+        <item name="android:windowEnterAnimation">@anim/player_enter</item>
+        <item name="android:windowExitAnimation">@anim/player_exit</item>
+    </style>
+</resources>
