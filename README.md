@@ -158,6 +158,6 @@ To publish it, push `docs/` to GitHub, then choose **Settings → Pages → Depl
 
 ## License
 
-The original Music Crow code and documentation are licensed under the [MIT License](LICENSE), copyright © 2026 Miniu123. MIT permits commercial use, including advertising, as well as modification and redistribution with the required copyright and license notice. Others may distribute modified versions, including versions without ads.
+The original Music Crow code and documentation are licensed under the [MIT License](LICENSE), copyright © 2026 Miniowski_. MIT permits commercial use, including advertising, as well as modification and redistribution with the required copyright and license notice. Others may distribute modified versions, including versions without ads.
 
 **Dependencies retain their own licenses.** The current application uses GPLv3 PyQt6 and the default GPL build of libmpv. Distributing the combined application requires compliance with these licenses, including the applicable source-code requirements; the complete Flatpak is not MIT-only. See [third-party notices and distribution notes](THIRD_PARTY_NOTICES.md). License information is available offline in **Settings → About and licenses → Read licenses** and on the [license page](docs/license.html).
