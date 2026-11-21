@@ -15,6 +15,8 @@ class LicenseDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
+        from ui.author_logo import author_logo
+        layout.addWidget(author_logo(220, self))
         heading = text(QLabel(), 'Music Crow · © 2026 Miniowski_')
         heading.setObjectName('SettingsRowTitle')
         layout.addWidget(heading)

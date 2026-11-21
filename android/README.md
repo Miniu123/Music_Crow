@@ -1,4 +1,4 @@
-# Music Crow — Android 0.9.0
+# Music Crow — Android 0.9.1
 
 Natywny port Muzycznej Wrony na Androida. Interfejs Java/Android, odtwarzanie
 Media3, Python 3.14 przez Chaquopy, yt-dlp do źródeł online. Kod desktopu

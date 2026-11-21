@@ -1,5 +1,13 @@
 # Testy Androida
 
+## Logo autora 0.9.1 — 21 listopada 2026
+
+- Ustawienia → „O aplikacji”: logo autora (Miniowski_), wersja i prawa autorskie;
+  okno „Licencje i informacje” pokazuje bieżącą wersję zamiast starego „0.5.0-dev”.
+- `assembleDebug`, `assembleDebugAndroidTest`: sukces. Testy lokalne: 39 / 39.
+- Testy na urządzeniu nie zostały uruchomione — telefon był odłączony.
+  `settingsHaveNoFullscreenSwitchAndBarsStayVisible` sprawdza teraz także logo.
+
 ## Odtwarzacz, kolejka i propozycje 0.9.0 — 21 listopada 2026
 
 - Pełny odtwarzacz: pod sterowaniem lista „Następne w kolejce”, pod nią propozycje

@@ -4,9 +4,9 @@ A desktop music player built with Python and PyQt6. Search for tracks on YouTube
 
 ## Install the Linux app (Flatpak)
 
-**[Download Music Crow 0.1.0 for Linux x86_64](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/releases/Music-Crow-0.1.0-x86_64.flatpak)**
+**[Download Music Crow 0.2.0 for Linux x86_64](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/releases/Music-Crow-0.2.0-x86_64.flatpak)**
 
-The ready-to-install `Music-Crow-0.1.0-x86_64.flatpak` is stored in the `releases/` folder of this repository. This build supports 64-bit Intel/AMD Linux systems; it is not a Windows, macOS or ARM package. You do not need to install Python or libmpv separately.
+The ready-to-install `Music-Crow-0.2.0-x86_64.flatpak` is stored in the `releases/` folder of this repository. This build supports 64-bit Intel/AMD Linux systems; it is not a Windows, macOS or ARM package. You do not need to install Python or libmpv separately.
 
 1. Install Flatpak for your Linux distribution using the [official setup instructions](https://flatpak.org/setup/).
 2. Download the file above. Open a terminal in the folder containing it (usually Downloads), or in `releases/` if you cloned the project.
@@ -14,7 +14,7 @@ The ready-to-install `Music-Crow-0.1.0-x86_64.flatpak` is stored in the `release
 
 ```bash
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak install --user ./Music-Crow-0.1.0-x86_64.flatpak
+flatpak install --user ./Music-Crow-0.2.0-x86_64.flatpak
 ```
 
 The first installation may download additional runtime packages. If your software manager supports local Flatpak bundles, you can also open the `.flatpak` file there.
@@ -31,13 +31,13 @@ To check the download, also save [SHA256SUMS](https://github.com/Miniu123/Music_
 
 ## Install the Windows app
 
-Run [Music-Crow-0.1.1-Windows-x64-Setup.exe](releases/Music-Crow-0.1.1-Windows-x64-Setup.exe) on Windows 10/11 x64. The installer is approximately 81 MiB; the installed application uses approximately 236 MiB, plus its audio cache. Python does not need to be installed separately. Installation is per user and does not require administrator rights.
+Run [Music-Crow-0.2.0-Windows-x64-Setup.exe](releases/Music-Crow-0.2.0-Windows-x64-Setup.exe) on Windows 10/11 x64. The installer is approximately 87 MiB; the installed application uses approximately 245 MiB, plus its audio cache. Python does not need to be installed separately. Installation is per user and does not require administrator rights.
 
 The installer adds a Start menu shortcut. Uninstalling preserves playlists and settings in `%APPDATA%\Music Crow`. Installation, startup and uninstallation have been tested under Wine; native Windows testing is still outstanding.
 
 ## Install the Android app
 
-Download [Music-Crow-0.9.0-Android.apk](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/releases/Music-Crow-0.9.0-Android.apk) (about 49 MiB) on an Android 8.0+ phone (ARM64). Open the file and, when asked, allow your browser or file manager to install apps from this source. A newer APK installs over the existing app and keeps playlists and settings; Google Drive backup transfers the library from the desktop app. Details: [android/README.md](android/README.md).
+Download [Music-Crow-0.9.1-Android.apk](https://github.com/Miniu123/Music_Crow/raw/refs/heads/main/releases/Music-Crow-0.9.1-Android.apk) (about 49 MiB) on an Android 8.0+ phone (ARM64). Open the file and, when asked, allow your browser or file manager to install apps from this source. A newer APK installs over the existing app and keeps playlists and settings; Google Drive backup transfers the library from the desktop app. Details: [android/README.md](android/README.md).
 
 ## Project layout
 
@@ -157,7 +157,7 @@ OAuth/Drive protocol tests use controlled responses and cover PKCE, sign-in stat
 
 ## Public website and privacy policy
 
-The static website lives in [`docs/`](docs/README.md). It includes a Polish product homepage, a privacy policy describing local storage and optional Google Drive backups, and the public contact `minu3009@gmail.com`.
+The static website lives in [`docs/`](docs/README.md). It includes a Polish product homepage, a privacy policy describing local storage and optional Google Drive backups, and contact through the project's [GitHub Issues](https://github.com/Miniu123/Music_Crow/issues).
 
 To publish it, push `docs/` to GitHub, then choose **Settings → Pages → Deploy from a branch → main → /docs → Save**. After a successful deployment, the expected homepage is `https://miniu123.github.io/Music_Crow/` and the privacy policy is `https://miniu123.github.io/Music_Crow/privacy.html`. See the website guide for OAuth branding, domain verification, and custom-domain setup. Publishing on Pages does not automatically complete Google's verification.
 

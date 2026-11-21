@@ -2033,12 +2033,31 @@ public final class MainActivity extends Activity {
                     + " backed up."),
             12,
             0xFFA3ABC5));
+    section(tr("O aplikacji", "About"));
+    ImageView authorLogo = new ImageView(this);
+    authorLogo.setImageResource(R.drawable.miniowski_wide);
+    authorLogo.setAdjustViewBounds(true);
+    authorLogo.setScaleType(ImageView.ScaleType.FIT_START);
+    authorLogo.setContentDescription(tr("Logo autora: Miniowski_", "Author's logo: Miniowski_"));
+    authorLogo.setOutlineProvider(
+        new android.view.ViewOutlineProvider() {
+          @Override
+          public void getOutline(View view, android.graphics.Outline outline) {
+            outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(12));
+          }
+        });
+    authorLogo.setClipToOutline(true);
+    authorLogo.setTag("author-logo");
+    LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(280), -2);
+    logoParams.setMargins(0, dp(4), 0, dp(8));
+    content.addView(authorLogo, logoParams);
+    content.addView(text("Music Crow " + appVersion() + " · © 2026 Miniowski_", 13, 0xFFA3ABC5));
     content.addView(
         button(
             tr("Licencje i informacje", "Licenses and information"),
             () ->
                 new AlertDialog.Builder(this)
-                    .setTitle("Music Crow 0.5.0-dev")
+                    .setTitle("Music Crow " + appVersion())
                     .setMessage(
                         "Music Crow: MIT\n"
                             + "AndroidX Media3: Apache-2.0\n"
@@ -2052,6 +2071,14 @@ public final class MainActivity extends Activity {
                         tr("Czytaj licencje", "Read licenses"), (dialog, which) -> showLicenses())
                     .setPositiveButton("OK", null)
                     .show()));
+  }
+
+  private String appVersion() {
+    try {
+      return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+    } catch (Exception error) {
+      return "";
+    }
   }
 
   private void showLicenses() {

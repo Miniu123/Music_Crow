@@ -133,6 +133,7 @@ EN = {
     'Wybierz utwór lub playlistę, aby otrzymać propozycje do dalszego słuchania.': 'Choose a track or playlist for listening suggestions.',
     'Strona główna': 'Home', 'Wyszukiwanie': 'Search', 'Playlista': 'Playlist', 'Kolejka': 'Queue', 'Wykonawca': 'Artist',
     'Czcionka Inter (OFL)': 'Inter typeface (OFL)',
+    'Autor: Miniowski_': 'Author: Miniowski_', 'Logo autora: Miniowski_': "Author's logo: Miniowski_",
     'Teraz gra': 'Now playing', 'Ostatnio wyszukiwane': 'Recent searches', 'Wyczyść': 'Clear',
     'Twoi wykonawcy': 'Your artists', 'Zacznij od czegoś, co już lubisz.': 'Start with something you already like.',
     'Wybierz utwór, playlistę lub propozycję, aby zacząć słuchać.': 'Pick a track, playlist or suggestion to start listening.',

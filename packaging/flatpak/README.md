@@ -1,6 +1,6 @@
 # Music Crow Flatpak — first local release
 
-The recipe targets Linux x86_64, app ID `io.github.Miniu123.MusicCrow`, version `0.1.0`, and Freedesktop Platform/SDK `25.08`. It includes PyQt6/Qt, libmpv with Lua and PulseAudio, yt-dlp with EJS and Deno, Google OAuth libraries, and MPRIS dependencies.
+The recipe targets Linux x86_64, app ID `io.github.Miniu123.MusicCrow`, the version from `core/version.py` (currently `0.2.0`), and Freedesktop Platform/SDK `25.08`. It includes PyQt6/Qt, libmpv with Lua and PulseAudio, yt-dlp with EJS and Deno, Google OAuth libraries, and MPRIS dependencies.
 
 The sandbox uses network access for music/OAuth, Wayland or fallback X11, PulseAudio, graphics acceleration and its own MPRIS bus name. It does not require access to the entire home directory. File selection and opening the system browser use desktop portals. Settings and playlists use `XDG_CONFIG_HOME`; audio cache uses `XDG_CACHE_HOME`.
 
@@ -23,7 +23,7 @@ The generated manifest pins downloaded archives and wheels by SHA-256 and builds
 ## Install and run
 
 ```sh
-flatpak install --user ./Music-Crow-0.1.0-x86_64.flatpak
+flatpak install --user ./Music-Crow-0.2.0-x86_64.flatpak
 flatpak run io.github.Miniu123.MusicCrow
 ```
 

@@ -15,7 +15,9 @@ hovered tracks are resolved in the background for best quality; their streams
 are kept with the time they become usable, so a later click plays in ~0.1 s.
 """
 import collections
+import json
 import logging
+import sys
 import threading
 import time
 from urllib.parse import parse_qs, urlparse
@@ -42,12 +44,13 @@ YDL_OPTIONS = {
 }
 PROFILES = {
     'embedded': dict(YDL_OPTIONS, extractor_args={'youtube': {'player_client': ['web_embedded']}}),
-    'android': dict(YDL_OPTIONS, extractor_args={'youtube': {'player_client': ['android']}}),
-    'default': YDL_OPTIONS,
 }
+# Other clients run in a separate yt-dlp process: once another YouTube client had
+# been used in-process, the embedded client started returning HLS video manifests
+# instead of audio-only streams for the rest of the session.
+ISOLATED_CLIENTS = {'android': ['--extractor-args', 'youtube:player_client=android'], 'default': []}
 
 _active_resolver = None
-_thread_state = threading.local()
 
 
 def is_resolvable(url):
@@ -81,14 +84,23 @@ def wait_time(info):
     return max(0.0, float((info or {}).get('available_at') or 0) - time.time())
 
 
+_instances = {}
+_instance_locks = {name: threading.Lock() for name in PROFILES}
+_creation_lock = threading.Lock()
+
+
 def _youtube_dl(profile):
-    instances = getattr(_thread_state, 'instances', None)
-    if instances is None:
-        instances = _thread_state.instances = {}
-    if profile not in instances:
-        import yt_dlp
-        instances[profile] = yt_dlp.YoutubeDL(dict(PROFILES[profile]))
-    return instances[profile]
+    """One shared yt-dlp instance per client profile.
+
+    Instances are created one at a time: building two concurrently left the
+    embedded-client instance misconfigured (it then returned muxed video
+    formats). Each instance is used by one thread at a time (see _lookup).
+    """
+    with _creation_lock:
+        if profile not in _instances:
+            import yt_dlp
+            _instances[profile] = yt_dlp.YoutubeDL(dict(PROFILES[profile]))
+        return _instances[profile]
 
 
 def _audio_stream(info):
@@ -109,9 +121,36 @@ def _audio_stream(info):
             'audio_only': info.get('vcodec') in (None, 'none')}
 
 
-def _lookup(profile, url):
+class _NeverInterrupted:
+    @staticmethod
+    def isInterruptionRequested():
+        return False
+
+
+def _lookup_isolated(client, url, timeout=30):
+    """A one-off yt-dlp process (yt-dlp.exe in the Windows build), sharing no state."""
+    from core.search_engine import run_extractor
+    command = [sys.executable, '-m', 'yt_dlp', '--ignore-config', '--quiet', '--no-warnings',
+               '--no-playlist', '--dump-single-json', '--format', YDL_OPTIONS['format'],
+               '--socket-timeout', '15', *ISOLATED_CLIENTS[client], '--', url]
     try:
-        return _audio_stream(_youtube_dl(profile).extract_info(url, download=False))
+        process = run_extractor(_NeverInterrupted(), command, timeout)
+        if process.returncode:
+            log.info('%s lookup failed for %s: %s', client, url, (process.stderr or '').strip()[-300:])
+            return None
+        return _audio_stream(json.loads(process.stdout))
+    except Exception as error:
+        log.info('%s lookup failed for %s: %s', client, url, error)
+        return None
+
+
+def _lookup(profile, url):
+    if profile in ISOLATED_CLIENTS:
+        return _lookup_isolated(profile, url)
+    try:
+        ydl = _youtube_dl(profile)
+        with _instance_locks[profile]:  # YoutubeDL is not safe for concurrent use
+            return _audio_stream(ydl.extract_info(url, download=False))
     except Exception as error:  # yt-dlp raises DownloadError when a client is refused
         log.info('%s lookup failed for %s: %s', profile, url, error)
         return None
@@ -232,8 +271,7 @@ class StreamResolver(QObject):
     @staticmethod
     def _import_ytdlp():
         try:
-            for profile in ('embedded', 'android'):
-                _youtube_dl(profile)
+            _youtube_dl('embedded')
         except ImportError:
             log.warning('yt-dlp is not installed; streams will open through mpv')
 

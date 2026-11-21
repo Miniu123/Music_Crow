@@ -125,25 +125,35 @@ class ResolverTests(unittest.TestCase):
         self.assertIsNone(sr._audio_stream({'is_live': True, 'url': 'x'}))
 
     def run_clients(self, behaviour, url=YT, fast=True):
+        """Embedded runs in-process (fake yt_dlp); other clients via run_extractor."""
+        import json, subprocess
         tried = []
         class FakeYDL:
             def __init__(self, options):
-                self.client = options.get('extractor_args', {}).get('youtube', {}).get('player_client', ['default'])[0]
+                self.client = options['extractor_args']['youtube']['player_client'][0]
             def extract_info(self, url, download):
                 tried.append(self.client)
                 result = behaviour[self.client]
                 if isinstance(result, Exception):
                     raise result
                 return result
-        sr._thread_state.instances = {}
-        self.addCleanup(lambda: setattr(sr._thread_state, 'instances', {}))
-        with patch.dict('sys.modules', {'yt_dlp': MagicMock(YoutubeDL=FakeYDL)}):
+        def fake_run(worker, command, timeout):
+            client = 'android' if 'youtube:player_client=android' in command else 'default'
+            tried.append(client)
+            result = behaviour[client]
+            if isinstance(result, Exception):
+                return subprocess.CompletedProcess(command, 1, '', str(result))
+            return subprocess.CompletedProcess(command, 0, json.dumps(result), '')
+        # Patch the factory itself so a background warm-up can never swap in real yt-dlp.
+        with patch.object(sr, '_youtube_dl', side_effect=lambda profile: FakeYDL(sr.PROFILES[profile])), \
+                patch('core.search_engine.run_extractor', side_effect=fake_run):
             return sr.extract_stream(url, fast=fast), sorted(tried)
 
     def test_click_uses_embedded_audio_when_it_works_at_once(self):
         stream, tried = self.run_clients({'web_embedded': {'url': STREAM % 2000000000, 'vcodec': 'none'},
                                           'android': {'url': 'https://android/stream'}})
         self.assertIn('googlevideo', stream['url'])
+        self.assertTrue(stream['audio_only'])
         self.assertEqual(tried, ['android', 'web_embedded'])  # asked concurrently
 
     def test_click_on_embed_blocked_video_starts_with_android_stream(self):
@@ -157,6 +167,12 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(tried, ['default', 'web_embedded'])
         _, tried = self.run_clients({'default': {'url': 'https://sc/stream'}}, url='https://soundcloud.com/a/b')
         self.assertEqual(tried, ['default'])
+
+    def test_fallback_clients_never_run_inside_the_app_process(self):
+        # Running another YouTube client in-process made the embedded client
+        # return HLS video manifests afterwards; fallbacks must use a subprocess.
+        self.assertEqual(set(sr.PROFILES), {'embedded'})
+        self.assertEqual(set(sr.ISOLATED_CLIENTS), {'android', 'default'})
 
 
 class PlayerStreamTests(unittest.TestCase):

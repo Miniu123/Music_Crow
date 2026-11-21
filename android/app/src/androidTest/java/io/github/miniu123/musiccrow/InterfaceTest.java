@@ -258,6 +258,11 @@ public class InterfaceTest {
               () -> activity.getWindow().getDecorView().findViewWithTag("fullscreen-toggle") == null);
       main(missing);
       assertTrue("The full-screen switch should be gone", missing.get());
+      FutureTask<Boolean> logo =
+          new FutureTask<>(
+              () -> activity.getWindow().getDecorView().findViewWithTag("author-logo") != null);
+      main(logo);
+      assertTrue("The author's logo is shown in About", logo.get());
     } finally {
       main(() -> activity.finish());
     }

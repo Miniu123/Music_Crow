@@ -1,6 +1,6 @@
 # Music Crow website — GitHub Pages
 
-A buildless, responsive Polish landing page, privacy policy and license page. The public contact approved for this site is `minu3009@gmail.com`; the publisher is identified by the GitHub handle `Miniu123`. Review the policy against any future application changes before publishing updates.
+A buildless, responsive Polish landing page, privacy policy and license page. Public contact goes through the project's GitHub Issues (no e-mail address is published); the author is shown as `Miniowski_` (GitHub account `Miniu123`). Review the policy against any future application changes before publishing updates.
 
 ## Publish from this repository
 
@@ -53,7 +53,7 @@ GitHub instructions: https://docs.github.com/en/pages/getting-started-with-githu
 
 ## Google OAuth branding
 
-After deployment, open both public URLs while signed out. In **Google Auth Platform → Branding**, enter the homepage and privacy-policy URLs, and use the same public support email: `minu3009@gmail.com`.
+After deployment, open both public URLs while signed out. In **Google Auth Platform → Branding**, enter the homepage and privacy-policy URLs, and choose the support email Google asks for in the console (it is not published on this site).
 
 Hosting the pages does **not** itself verify ownership or guarantee Google's approval. Google separately requires verification of the domains used for OAuth branding. Do not enter `github.com` or `github.io` as a domain you own. If Google cannot verify your GitHub Pages subdomain for branding, connect a domain you control to GitHub Pages, verify that domain with **Google Search Console**, and use the custom-domain URLs for both pages.
 

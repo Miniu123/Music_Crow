@@ -1,7 +1,9 @@
 """Create an auditable, self-contained Flatpak build directory from this checkout."""
 import argparse
+import datetime
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -14,7 +16,9 @@ project = recipe.parent.parent
 out = args.output.resolve()
 out.mkdir(parents=True, exist_ok=True)
 app_id = 'io.github.Miniu123.MusicCrow'
-version = '0.1.0'
+# Single source of truth for the desktop version.
+version = re.search(r"__version__ = '([^']+)'", (project / 'core/version.py').read_text())[1]
+release_date = datetime.date.today().isoformat()
 app = out / 'app-source'
 app.mkdir(exist_ok=True)
 for folder in ('core', 'ui'):
@@ -72,12 +76,12 @@ StartupWMClass={app_id}
   <name>Music Crow</name>
   <summary>Discover music and organise your listening queue</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <developer id="io.github.Miniu123"><name>Miniu123</name></developer>
+  <developer id="io.github.Miniu123"><name>Miniowski_</name></developer>
   <description><p>A desktop music player with playlists, personalised recommendations and optional Google Drive backups.</p></description>
   <launchable type="desktop-id">{app_id}.desktop</launchable>
   <url type="homepage">https://miniu123.github.io/Music_Crow/</url>
   <url type="bugtracker">https://github.com/Miniu123/Music_Crow/issues</url>
-  <releases><release version="{version}" date="2026-10-21"/></releases>
+  <releases><release version="{version}" date="{release_date}"/></releases>
   <content_rating type="oars-1.1"/>
 </component>
 ''')

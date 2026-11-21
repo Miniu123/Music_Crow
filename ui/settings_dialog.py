@@ -224,6 +224,12 @@ class SettingsDialog(QDialog):
         audio.addWidget(SliderRow('Niskie tony', 'Wzmocnienie basu w dB.', 'BASS_GAIN', -15, 15, theme_manager, body))
         audio.addWidget(SliderRow('Wysokie tony', 'Wzmocnienie wysokich częstotliwości w dB.', 'TREBLE_GAIN', -15, 15, theme_manager, body))
         about = self._section(content, 'O APLIKACJI I LICENCJE')
+        from ui.author_logo import author_logo
+        from core.version import __version__
+        about.addWidget(author_logo(240, body), alignment=Qt.AlignmentFlag.AlignLeft)
+        version = QLabel(f'Music Crow {__version__}')
+        version.setObjectName('SettingsRowDescription')
+        about.addWidget(version)
         text_column(about, 'Music Crow · © 2026 Miniowski_',
                     'Kod Music Crow: MIT. Biblioteki mają własne licencje, w tym GPLv3 dla PyQt6.')
         licenses = text(QPushButton(), 'Przeczytaj licencje')
