@@ -76,6 +76,7 @@ class CacheTests(unittest.TestCase):
         for i, path in enumerate(paths):
             os.utime(path, (100 + i, 100 + i))
         self.cache._protected = {cache_key(urls[0])}
+        self.cache.max_files = 3
         self.cache.prune()
         self.assertTrue(Path(paths[0]).exists())
         self.assertFalse(Path(paths[1]).exists())

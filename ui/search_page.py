@@ -12,7 +12,8 @@ from core.thumbnail_loader import ThumbnailManager, get_rounded_pixmap
 from core.player_state import load_recent_searches, remember_search, save_recent_searches
 from core.recommendations import artist_name
 from ui.flow_layout import FlowLayout
-from ui.track_tile import same_track, set_now_playing
+from ui.track_tile import hover_prefetch, same_track, set_now_playing
+from core.stream_resolver import prefetch_tracks
 
 
 class PlatformFilterBar(QWidget):
@@ -216,6 +217,10 @@ class SearchResultCard(QFrame):
     def set_now_playing(self, value):
         set_now_playing(self, value)
 
+    def enterEvent(self, event):
+        hover_prefetch(self, self.result)
+        super().enterEvent(event)
+
     def set_thumbnail(self, pixmap: QPixmap):
         rounded = get_rounded_pixmap(pixmap, 58, 58, radius=8)
         self.thumbnail_label.setPixmap(rounded)
@@ -381,6 +386,7 @@ class SearchPage(QWidget):
         set_text(self.status_label, f"Wyniki: {len(results)}")
         self._set_status_state("")
 
+        prefetch_tracks(results, limit=3)  # the top results are the likeliest clicks
         for result in results:
             card = SearchResultCard(result)
             card.clicked.connect(self._on_result_clicked)

@@ -17,6 +17,7 @@ from ui.create_playlist_dialog import CreatePlaylistDialog
 from core.thumbnail_loader import get_rounded_pixmap, ThumbnailManager
 from core.theme_manager import active_palette, connect_theme_changed
 from ui.track_tile import TileGrid, TrackTile, same_track
+from core.stream_resolver import prefetch_tracks
 from core.recommendations import ListeningHistory, RecommendationManager, PlaybackRecommendationManager
 
 
@@ -174,6 +175,7 @@ class HomePage(QWidget):
                 track.get("thumbnail_url", ""), lambda url, pixmap, t=tile: t.set_thumbnail(pixmap)
             )
         self.recommendation_grid.set_tiles(tiles)
+        prefetch_tracks(tracks, limit=4)
         self._mark_now_playing()
 
     def _mark_now_playing(self, *_):

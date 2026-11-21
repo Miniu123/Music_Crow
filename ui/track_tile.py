@@ -1,10 +1,11 @@
 """Cover-art tiles in a responsive grid, plus the shared "now playing" marker."""
-from PyQt6.QtCore import QRectF, Qt, pyqtSignal
+from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPixmap
 from PyQt6.QtWidgets import QFrame, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from core.i18n import set_text, tr
 from core.recommendations import track_key
+from core.stream_resolver import prefetch_tracks
 from core.theme_manager import active_accent, active_palette, with_alpha
 from ui.artist_button import ArtistButton
 from ui.motion import MotionButton
@@ -17,6 +18,20 @@ def same_track(track, current):
     if not track.get('url') or not current.get('url'):
         return False
     return track_key(track) == track_key(current)
+
+
+def hover_prefetch(widget, track, delay=200):
+    """Resolve a track's stream once the pointer rests on it, so a click plays at once."""
+    if not isinstance(track, dict) or not track.get('url'):
+        return
+
+    def resolve():
+        try:
+            if widget.underMouse():
+                prefetch_tracks([track], limit=1)
+        except RuntimeError:  # the widget was deleted before the timer fired
+            pass
+    QTimer.singleShot(delay, resolve)
 
 
 def set_now_playing(widget, value):
@@ -204,6 +219,7 @@ class TrackTile(QFrame):
             self.cover.update()
 
     def enterEvent(self, event):
+        hover_prefetch(self, self.track)
         self.cover.hovered = True
         self.cover.update()
         super().enterEvent(event)

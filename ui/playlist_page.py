@@ -12,7 +12,8 @@ from PyQt6.QtGui import QColor, QPixmap
 from ui.icons import icon
 from core.search_engine import PLATFORM_COLORS
 from core.thumbnail_loader import ThumbnailManager, get_rounded_pixmap
-from ui.track_tile import same_track, set_now_playing
+from ui.track_tile import hover_prefetch, same_track, set_now_playing
+from core.stream_resolver import prefetch_tracks
 
 
 class PlaylistTrackCard(QFrame):
@@ -110,6 +111,10 @@ class PlaylistTrackCard(QFrame):
         btn_remove.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_remove.clicked.connect(lambda: self.remove_clicked.emit(self.index))
         layout.addWidget(btn_remove)
+
+    def enterEvent(self, event):
+        hover_prefetch(self, self.track)
+        super().enterEvent(event)
 
     def set_now_playing(self, value):
         if set_now_playing(self, value):
@@ -347,6 +352,7 @@ class PlaylistPage(QWidget):
         tracks = self.playlist_manager.get_tracks(self._current_playlist)
         set_text(self.track_count_label, f"Utwory: {len(tracks)}")
 
+        prefetch_tracks(tracks, limit=2)  # "Play all" and the first rows start at once
         for i, track in enumerate(tracks):
             card = PlaylistTrackCard(track, i)
             card.play_clicked.connect(self._on_play)

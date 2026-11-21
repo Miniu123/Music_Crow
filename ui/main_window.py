@@ -95,6 +95,9 @@ class MainWindow(QMainWindow):
         # Grab keyboard focus for multimedia keys
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
+        # Load yt-dlp in the background so the first click does not pay for it.
+        QTimer.singleShot(1500, self.player.resolver.warm_up)
+
     def _sync_sidebar_selection(self):
         self.sidebar.set_active_page(*self.main_content.current_page())
 

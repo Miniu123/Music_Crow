@@ -15,7 +15,8 @@ from core.search_engine import run_extractor
 
 log = logging.getLogger(__name__)
 MAX_FILE_BYTES = 80 * 1024 * 1024
-MAX_CACHE_BYTES = 200 * 1024 * 1024
+MAX_CACHE_BYTES = 400 * 1024 * 1024
+MAX_CACHE_FILES = 25  # recently played tracks replay instantly from disk
 
 
 def cache_key(url):
@@ -76,6 +77,7 @@ class AudioPrefetcher(QObject):
     def __init__(self, parent=None, directory=None):
         super().__init__(parent)
         self.directory = Path(directory) if directory else cache_dir() / 'audio'
+        self.max_files = MAX_CACHE_FILES
         self._worker = None
         self._wanted = ''
         self._protected = set()
@@ -89,6 +91,7 @@ class AudioPrefetcher(QObject):
         for path in self.directory.glob(cache_key(url) + '.*'):
             try:
                 if path.is_file() and 0 < path.stat().st_size <= MAX_FILE_BYTES:
+                    os.utime(path)  # least recently used files are pruned first
                     return str(path)
             except OSError:
                 continue
@@ -157,7 +160,7 @@ class AudioPrefetcher(QObject):
             size = 0
             for index, path in enumerate(files):
                 size += path.stat().st_size
-                if (index >= 3 or size > MAX_CACHE_BYTES) and path.stem not in self._protected:
+                if (index >= self.max_files or size > MAX_CACHE_BYTES) and path.stem not in self._protected:
                     path.unlink(missing_ok=True)
         except OSError:
             log.warning('Cannot prune audio cache')

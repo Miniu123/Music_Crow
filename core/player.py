@@ -4,6 +4,7 @@ import time
 from PyQt6.QtCore import QObject, pyqtSignal, Qt, QTimer
 from core.recommendations import track_key
 from core.audio_prefetch import AudioPrefetcher
+from core.stream_resolver import StreamResolver, is_resolvable, stream_key, wait_time
 
 
 class MusicPlayer(QObject):
@@ -51,11 +52,30 @@ class MusicPlayer(QObject):
         # Dual MPV instances for Crossfade
         # config=False prevents MPV from loading user's mpv.conf which could trigger playback
         # idle=True keeps MPV in idle state without playing anything on startup
+        # all_formats=no: if mpv ever has to use its own yt-dlp hook (fallback),
+        # it should not assemble every video format just to play audio.
         self.players = [
-            mpv.MPV(ytdl=True, video=False, config=False, idle=True),
-            mpv.MPV(ytdl=True, video=False, config=False, idle=True)
+            mpv.MPV(ytdl=True, video=False, config=False, idle=True,
+                    script_opts='ytdl_hook-all_formats=no'),
+            mpv.MPV(ytdl=True, video=False, config=False, idle=True,
+                    script_opts='ytdl_hook-all_formats=no'),
         ]
         self.active_idx = 0
+        self._default_user_agents = []
+        for engine in self.players:
+            try:
+                self._default_user_agents.append(engine.user_agent)
+            except Exception:
+                self._default_user_agents.append(None)
+
+        # Direct audio streams resolved by yt-dlp start far sooner than mpv's hook.
+        self.resolver = StreamResolver(self)
+        self.resolver.resolved.connect(self._on_stream_resolved)
+        self._pending_play = None   # (url, start_paused) while its stream is being resolved
+        self._resolve_timeout = QTimer(self)
+        self._resolve_timeout.setSingleShot(True)
+        self._resolve_timeout.setInterval(20000)
+        self._resolve_timeout.timeout.connect(self._on_resolve_timeout)
         
         # State for crossfading
         self._is_crossfading = False
@@ -100,9 +120,81 @@ class MusicPlayer(QObject):
             url = ""
         current = self._current_track.get("url", "")
         self.prefetcher.request(url, protected_urls=(current, url))
+        if self._current_track and self._prefetch_active:
+            self._prefetch_upcoming_streams()
 
     def _playback_source(self, url):
         return self.prefetcher.cached_path(url) or url
+
+    def _best_source(self, url):
+        """(source, headers, needs_lookup): local file, resolved stream or the page URL."""
+        cached_file = self.prefetcher.cached_path(url)
+        if cached_file:
+            return cached_file, None, False
+        stream = self.resolver.usable(url)
+        if stream:
+            return stream["url"], stream.get("headers"), False
+        return url, None, is_resolvable(url)
+
+    def _load_source(self, engine, source, headers=None):
+        """Loads a source, sending the HTTP headers the stream was resolved with."""
+        headers = headers or {}
+        try:
+            default_agent = self._default_user_agents[self.players.index(engine)]
+        except (ValueError, IndexError):
+            default_agent = None
+        try:
+            agent = headers.get("User-Agent") or default_agent
+            if agent is not None:
+                engine.user_agent = agent
+            engine.http_header_fields = [f"{name}: {value}" for name, value in headers.items()
+                                         if name.lower() != "user-agent"]
+        except Exception:
+            pass
+        engine.play(source)
+
+    def _on_stream_resolved(self, url, info, for_playback=True):
+        pending = self._pending_play
+        if pending is None or stream_key(pending[0]) != stream_key(url):
+            return
+        if info and wait_time(info) == 0:
+            self._play_pending(pending, info)
+        elif not for_playback:
+            return  # a background result that is not usable yet: the click's own lookup continues
+        elif info:
+            # Rare: no client offered a stream usable at once; start when it is.
+            QTimer.singleShot(int(wait_time(info) * 1000) + 50,
+                              lambda: self._pending_play is pending and self._play_pending(pending, info))
+        else:
+            self._play_pending(pending, None)  # mpv's own yt-dlp hook as a fallback
+
+    def _play_pending(self, pending, info):
+        self._pending_play = None
+        self._resolve_timeout.stop()
+        try:
+            if info:
+                self._load_source(self.mpv, info["url"], info.get("headers"))
+            else:
+                self._load_source(self.mpv, pending[0])
+            self.mpv.pause = pending[1]
+        except Exception as error:  # an exception in a Qt slot would abort the app
+            print(f"Playback error: {error}")
+
+    def _on_resolve_timeout(self):
+        pending, self._pending_play = self._pending_play, None
+        if pending:
+            self._load_source(self.mpv, pending[0])
+            self.mpv.pause = pending[1]
+
+    def _prefetch_upcoming_streams(self):
+        """Resolve the next few tracks so skipping and crossfades start at once."""
+        urls = []
+        next_track, _ = self._get_next_track_info() if self._current_track else (None, "")
+        for track in [next_track] + self._priority_queue[:2] + self.upcoming_base_tracks()[:2]:
+            url = (track or {}).get("url", "")
+            if url and url not in urls:
+                urls.append(url)
+        self.resolver.prefetch(urls[:3])
 
     def _on_prefetch_status(self, url, state):
         messages = {"downloading": "Pobieram następny utwór…", "ready": "Następny utwór gotowy",
@@ -178,10 +270,10 @@ class MusicPlayer(QObject):
         except Exception:
             pass
 
-        # 5. Check idle-active state
+        # 5. Check idle-active state (not while the next stream is still being resolved)
         try:
             is_idle = self.mpv.idle_active
-            if is_idle != self._last_idle_state:
+            if self._pending_play is None and is_idle != self._last_idle_state:
                 self._last_idle_state = is_idle
                 if is_idle and self._current_track and not self._is_crossfading:
                     self.state_changed.emit(False)
@@ -216,8 +308,22 @@ class MusicPlayer(QObject):
         self.time_pos_changed.emit(0)
         self.duration_changed.emit(0)
         self.mpv.volume = self._master_volume
-        self.mpv.play(self._playback_source(url))
-        self.mpv.pause = start_paused
+        self._resolve_timeout.stop()
+        self._pending_play = None
+        source, headers, needs_lookup = self._best_source(url)
+        if needs_lookup and self.resolver.play_now(url):
+            # Silence the previous track while the stream is resolved (~2 s).
+            self._pending_play = (url, start_paused)
+            self._resolve_timeout.start()
+            try:
+                self.mpv.command("stop")
+            except Exception:
+                pass
+        else:
+            if needs_lookup:  # resolved in the meantime, or recently failed
+                source, headers, _ = self._best_source(url)
+            self._load_source(self.mpv, source, headers)
+            self.mpv.pause = start_paused
         if not start_paused:
             self.state_changed.emit(True)
         
@@ -565,7 +671,9 @@ class MusicPlayer(QObject):
         new_mpv = self.players[self._cf_fading_in_idx]
         new_mpv.volume = 0
         try:
-            new_mpv.play(self._playback_source(track.get("url", "")))
+            # Usually resolved in advance; otherwise mpv's own hook is the fallback.
+            source, headers, _ = self._best_source(track.get("url", ""))
+            self._load_source(new_mpv, source, headers)
         except Exception:
             pass
         try:
@@ -691,6 +799,8 @@ class MusicPlayer(QObject):
             self.mpv.seek(target_time, reference='absolute')
 
     def stop(self):
+        self._pending_play = None
+        self._resolve_timeout.stop()
         self._prefetch_active = False
         self._prefetch_timer.stop()
         self.prefetcher.request("")
@@ -706,6 +816,7 @@ class MusicPlayer(QObject):
     def shutdown(self):
         self._poll_timer.stop()
         self._prefetch_timer.stop()
+        self.resolver.shutdown()
         self.prefetcher.shutdown()
         self.stop()
         for player in self.players:
